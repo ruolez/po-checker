@@ -36,7 +36,7 @@ body {
 .app-bar {
     background-color: var(--primary);
     color: white;
-    padding: 16px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -44,11 +44,13 @@ body {
     top: 0;
     z-index: 100;
     box-shadow: 0 2px 4px var(--shadow);
+    gap: 12px;
 }
 
 .app-bar h1 {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 500;
+    flex: 1;
 }
 
 .app-bar-actions {
@@ -292,26 +294,27 @@ body {
 }
 
 .po-number {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 20px;
+    font-weight: 600;
     color: var(--primary);
 }
 
 .po-date {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--on-surface-secondary);
 }
 
 .po-supplier {
-    font-size: 14px;
+    font-size: 17px;
+    font-weight: 500;
     color: var(--on-surface);
-    margin-bottom: 4px;
+    margin-bottom: 6px;
 }
 
 .po-meta {
     display: flex;
     gap: 16px;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--on-surface-secondary);
 }
 
@@ -473,12 +476,12 @@ body {
 }
 
 .scan-item-desc {
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 500;
 }
 
 .scan-item-upc {
-    font-size: 12px;
+    font-size: 13px;
     color: var(--on-surface-secondary);
 }
 
@@ -495,7 +498,7 @@ body {
 .summary-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .summary-table th,
@@ -508,7 +511,7 @@ body {
 .summary-table th {
     background-color: var(--background);
     font-weight: 500;
-    font-size: 12px;
+    font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--on-surface-secondary);
