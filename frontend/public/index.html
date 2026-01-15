@@ -50,27 +50,34 @@
         </div>
 
         <!-- Filters -->
-        <section class="filters">
-            <div class="filters-title">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-                </svg>
-                Filters
-            </div>
-            <div class="form-group">
-                <label class="form-label">Supplier</label>
-                <select class="form-select" id="filter-supplier">
-                    <option value="">All Suppliers</option>
-                </select>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">From Date</label>
-                    <input type="date" class="form-input" id="filter-date-from">
+        <section class="filters collapsed" id="filters-section">
+            <div class="filters-header" id="filters-toggle">
+                <div class="filters-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                    </svg>
+                    Filters
                 </div>
+                <svg class="filters-chevron" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+            </div>
+            <div class="filters-content">
                 <div class="form-group">
-                    <label class="form-label">To Date</label>
-                    <input type="date" class="form-input" id="filter-date-to">
+                    <label class="form-label">Supplier</label>
+                    <select class="form-select" id="filter-supplier">
+                        <option value="">All Suppliers</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-input" id="filter-date-from">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-input" id="filter-date-to">
+                    </div>
                 </div>
             </div>
         </section>

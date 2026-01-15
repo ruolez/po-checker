@@ -318,19 +318,55 @@ body {
 /* Filters */
 .filters {
     background-color: var(--surface);
-    padding: 16px;
     border-radius: 12px;
     margin-bottom: 16px;
     box-shadow: 0 1px 3px var(--shadow);
+    overflow: hidden;
+}
+
+.filters-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s;
+}
+
+.filters-header:hover {
+    background-color: var(--primary-light);
 }
 
 .filters-title {
     font-size: 14px;
     font-weight: 500;
-    margin-bottom: 12px;
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.filters-chevron {
+    transition: transform 0.3s ease;
+}
+
+.filters.collapsed .filters-chevron {
+    transform: rotate(-90deg);
+}
+
+.filters-content {
+    padding: 0 16px 16px 16px;
+    max-height: 500px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+.filters.collapsed .filters-content {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    opacity: 0;
 }
 
 /* Scan Input */

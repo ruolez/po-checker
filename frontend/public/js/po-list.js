@@ -198,6 +198,12 @@ document.getElementById('filter-date-to').addEventListener('change', loadPOs);
 // Refresh button
 document.getElementById('refresh-btn').addEventListener('click', loadPOs);
 
+// Filters toggle (collapsible)
+document.getElementById('filters-toggle').addEventListener('click', () => {
+    const filtersSection = document.getElementById('filters-section');
+    filtersSection.classList.toggle('collapsed');
+});
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     await loadSuppliers();
