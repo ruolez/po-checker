@@ -1,0 +1,348 @@
+import os
+import json
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import pymssql
+from contextlib import contextmanager
+
+
+class PostgresManager:
+    def __init__(self):
+        self.database_url = os.environ.get('DATABASE_URL', 'postgresql://pochecker:pochecker@postgres:5432/pochecker')
+
+    @contextmanager
+    def get_connection(self):
+        conn = psycopg2.connect(self.database_url)
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def get_config(self, key):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT value FROM config WHERE key = %s", (key,))
+                row = cur.fetchone()
+                if row and row['value']:
+                    try:
+                        return json.loads(row['value'])
+                    except json.JSONDecodeError:
+                        return row['value']
+                return None
+
+    def set_config(self, key, value):
+        value_str = json.dumps(value) if isinstance(value, dict) else str(value)
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO config (key, value, updated_at)
+                    VALUES (%s, %s, CURRENT_TIMESTAMP)
+                    ON CONFLICT (key) DO UPDATE SET
+                        value = EXCLUDED.value,
+                        updated_at = CURRENT_TIMESTAMP
+                """, (key, value_str))
+
+    def get_all_config(self):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT key, value FROM config")
+                rows = cur.fetchall()
+                result = {}
+                for row in rows:
+                    try:
+                        result[row['key']] = json.loads(row['value'])
+                    except (json.JSONDecodeError, TypeError):
+                        result[row['key']] = row['value']
+                return result
+
+    # Session management
+    def create_session(self, po_id, po_number, supplier_name):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO receiving_sessions (po_id, po_number, supplier_name, status)
+                    VALUES (%s, %s, %s, 'in_progress')
+                    RETURNING *
+                """, (po_id, po_number, supplier_name))
+                return cur.fetchone()
+
+    def get_session(self, session_id):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SELECT * FROM receiving_sessions WHERE id = %s", (session_id,))
+                return cur.fetchone()
+
+    def get_active_session(self):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM receiving_sessions
+                    WHERE status = 'in_progress'
+                    ORDER BY started_at DESC
+                    LIMIT 1
+                """)
+                return cur.fetchone()
+
+    def update_session_status(self, session_id, status):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if status in ('completed', 'cancelled'):
+                    cur.execute("""
+                        UPDATE receiving_sessions
+                        SET status = %s, completed_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                        RETURNING *
+                    """, (status, session_id))
+                else:
+                    cur.execute("""
+                        UPDATE receiving_sessions
+                        SET status = %s
+                        WHERE id = %s
+                        RETURNING *
+                    """, (status, session_id))
+                return cur.fetchone()
+
+    # Scan records
+    def add_scan_record(self, session_id, barcode, barcode_type, product_upc, product_description, line_id, quantity):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO scan_records
+                    (session_id, barcode, barcode_type, product_upc, product_description, line_id, quantity)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING *
+                """, (session_id, barcode, barcode_type, product_upc, product_description, line_id, quantity))
+                return cur.fetchone()
+
+    def get_session_scans(self, session_id):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM scan_records
+                    WHERE session_id = %s
+                    ORDER BY scanned_at DESC
+                """, (session_id,))
+                return cur.fetchall()
+
+    def get_session_totals(self, session_id):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        line_id,
+                        product_upc,
+                        product_description,
+                        SUM(quantity) as total_received
+                    FROM scan_records
+                    WHERE session_id = %s
+                    GROUP BY line_id, product_upc, product_description
+                """, (session_id,))
+                return cur.fetchall()
+
+
+class MSSQLManager:
+    def __init__(self, server, port, database, username, password):
+        self.server = server
+        self.port = int(port) if port else 1433
+        self.database = database
+        self.username = username
+        self.password = password
+
+    @contextmanager
+    def get_connection(self):
+        conn = pymssql.connect(
+            server=self.server,
+            port=self.port,
+            database=self.database,
+            user=self.username,
+            password=self.password
+        )
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+    def test_connection(self):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                return True, "Connection successful"
+        except Exception as e:
+            return False, str(e)
+
+
+class S2SManager(MSSQLManager):
+    def get_open_pos(self, supplier_id=None, date_from=None, date_to=None):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(as_dict=True)
+            query = """
+                SELECT
+                    po.PoID,
+                    po.PoNumber,
+                    po.PoDate,
+                    po.RequiredDate,
+                    po.SupplierID,
+                    po.BusinessName,
+                    po.PoTitle,
+                    po.Status,
+                    po.TotQtyOrd,
+                    po.TotQtyRcv,
+                    po.NoLines
+                FROM PurchaseOrders_tbl po
+                WHERE (po.Status = 0 OR po.Status IS NULL)
+            """
+            params = []
+
+            if supplier_id:
+                query += " AND po.SupplierID = %s"
+                params.append(supplier_id)
+
+            if date_from:
+                query += " AND po.PoDate >= %s"
+                params.append(date_from)
+
+            if date_to:
+                query += " AND po.PoDate <= %s"
+                params.append(date_to)
+
+            query += " ORDER BY po.PoDate DESC"
+
+            cursor.execute(query, tuple(params))
+            return cursor.fetchall()
+
+    def get_po_details(self, po_id):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(as_dict=True)
+
+            # Get PO header
+            cursor.execute("""
+                SELECT
+                    po.PoID,
+                    po.PoNumber,
+                    po.PoDate,
+                    po.RequiredDate,
+                    po.SupplierID,
+                    po.BusinessName,
+                    po.PoTitle,
+                    po.Status,
+                    po.TotQtyOrd,
+                    po.TotQtyRcv,
+                    po.NoLines,
+                    po.Notes
+                FROM PurchaseOrders_tbl po
+                WHERE po.PoID = %s
+            """, (po_id,))
+            po = cursor.fetchone()
+
+            if not po:
+                return None
+
+            # Get PO line items
+            cursor.execute("""
+                SELECT
+                    pod.LineID,
+                    pod.PoID,
+                    pod.ProductID,
+                    pod.ProductSKU,
+                    pod.ProductUPC,
+                    pod.ProductDescription,
+                    pod.UnitDesc,
+                    pod.UnitQty,
+                    pod.QtyOrdered,
+                    pod.QtyReceived,
+                    pod.UnitCost,
+                    pod.ExtendedCost,
+                    pod.ItemSize
+                FROM PurchaseOrdersDetails_tbl pod
+                WHERE pod.PoID = %s
+                ORDER BY pod.LineID
+            """, (po_id,))
+            po['lines'] = cursor.fetchall()
+
+            return po
+
+    def get_suppliers(self):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT DISTINCT
+                    s.SupplierID,
+                    s.BusinessName
+                FROM Suppliers_tbl s
+                INNER JOIN PurchaseOrders_tbl po ON s.SupplierID = po.SupplierID
+                WHERE s.Discontinued = 0 OR s.Discontinued IS NULL
+                ORDER BY s.BusinessName
+            """)
+            return cursor.fetchall()
+
+    def find_product_by_upc(self, upc):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(as_dict=True)
+            cursor.execute("""
+                SELECT
+                    ProductID,
+                    ProductSKU,
+                    ProductUPC,
+                    ProductDescription
+                FROM Items_tbl
+                WHERE ProductUPC = %s
+            """, (upc,))
+            return cursor.fetchone()
+
+
+class ShipperDBManager(MSSQLManager):
+    def __init__(self, server, port, database, username, password, table_name='case_barcodes'):
+        super().__init__(server, port, database, username, password)
+        self.table_name = table_name
+
+    def find_case_barcode(self, barcode):
+        with self.get_connection() as conn:
+            cursor = conn.cursor(as_dict=True)
+            query = f"""
+                SELECT
+                    id,
+                    barcode,
+                    unit_barcode,
+                    quantity
+                FROM {self.table_name}
+                WHERE barcode = %s
+            """
+            cursor.execute(query, (barcode,))
+            return cursor.fetchone()
+
+
+# Global instances
+postgres = PostgresManager()
+
+
+def get_s2s_manager():
+    config = postgres.get_config('s2s_connection')
+    if not config:
+        return None
+    return S2SManager(
+        server=config.get('server'),
+        port=config.get('port', 1433),
+        database=config.get('database'),
+        username=config.get('username'),
+        password=config.get('password')
+    )
+
+
+def get_shipper_manager():
+    config = postgres.get_config('shipper_connection')
+    if not config:
+        return None
+    return ShipperDBManager(
+        server=config.get('server'),
+        port=config.get('port', 1433),
+        database=config.get('database'),
+        username=config.get('username'),
+        password=config.get('password'),
+        table_name=config.get('table_name', 'case_barcodes')
+    )

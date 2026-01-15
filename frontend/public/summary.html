@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Summary - PO Checker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header class="app-bar">
+        <h1>Receiving Summary</h1>
+    </header>
+
+    <main class="container page-content">
+        <!-- PO Info Card -->
+        <section class="card">
+            <div class="po-header">
+                <span class="po-number" id="po-number">Loading...</span>
+                <span class="badge badge-success" id="status-badge">Completed</span>
+            </div>
+            <div class="po-supplier" id="po-supplier"></div>
+            <div class="po-meta" id="session-meta"></div>
+        </section>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-ordered">-</div>
+                <div class="stat-label">Ordered</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-received">-</div>
+                <div class="stat-label">Received</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-lines">-</div>
+                <div class="stat-label">Line Items</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-scans">-</div>
+                <div class="stat-label">Total Scans</div>
+            </div>
+        </div>
+
+        <!-- Discrepancy Alert -->
+        <div id="discrepancy-alert" class="alert alert-warning hidden">
+            <strong>Discrepancies Found:</strong> Some items were not fully received or have quantity differences.
+        </div>
+
+        <!-- All Complete Alert -->
+        <div id="complete-alert" class="alert alert-success hidden">
+            All items received successfully!
+        </div>
+
+        <!-- Summary Table -->
+        <section class="card">
+            <div class="card-title">Item Details</div>
+            <div style="overflow-x: auto;">
+                <table class="summary-table" id="summary-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th style="text-align: right; width: 50px">Ord</th>
+                            <th style="text-align: right; width: 50px">Rcv</th>
+                            <th style="text-align: right; width: 50px">Diff</th>
+                        </tr>
+                    </thead>
+                    <tbody id="summary-tbody">
+                        <tr>
+                            <td colspan="4" class="text-center">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="btn-group mt-16">
+            <a href="/" class="btn btn-primary btn-block">Back to PO List</a>
+        </div>
+    </main>
+
+    <script src="/js/summary.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Receiving - PO Checker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header class="app-bar">
+        <h1 id="po-title">Receiving</h1>
+    </header>
+
+    <main class="container page-content">
+        <!-- PO Info Card -->
+        <section class="card">
+            <div class="po-header">
+                <span class="po-number" id="po-number">Loading...</span>
+                <span class="po-date" id="po-date"></span>
+            </div>
+            <div class="po-supplier" id="po-supplier"></div>
+        </section>
+
+        <!-- Progress -->
+        <section class="progress-container">
+            <div class="progress-header">
+                <span class="progress-label">Receiving Progress</span>
+                <span class="progress-value" id="progress-text">0 / 0 items</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill" style="width: 0%"></div>
+            </div>
+        </section>
+
+        <!-- Scan Input -->
+        <section class="scan-container">
+            <input
+                type="text"
+                class="scan-input"
+                id="scan-input"
+                placeholder="Scan barcode here"
+                autocomplete="off"
+                autofocus
+            >
+            <div class="scan-status" id="scan-status">Ready to scan</div>
+        </section>
+
+        <!-- Error message -->
+        <div id="scan-error" class="alert alert-error hidden"></div>
+
+        <!-- Recent Scans -->
+        <section class="scan-history" id="scan-history">
+            <div class="scan-history-header">Recent Scans</div>
+            <div id="scan-list">
+                <div class="empty-state">
+                    <div class="empty-state-desc">No items scanned yet</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Expected Items -->
+        <section class="card mt-16">
+            <div class="card-title">Expected Items</div>
+            <div id="expected-items">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Action Buttons -->
+        <div class="btn-group mt-16">
+            <button class="btn btn-outline" id="cancel-btn">Cancel</button>
+            <button class="btn btn-success" id="complete-btn">Complete</button>
+        </div>
+    </main>
+
+    <!-- Confirm Cancel Modal -->
+    <div id="cancel-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Cancel Receiving?</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to cancel this receiving session? All scanned items will be discarded.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancel-no">Keep Receiving</button>
+                <button class="btn btn-danger" id="cancel-yes">Cancel Session</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Complete Modal -->
+    <div id="complete-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Complete Receiving?</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to complete this receiving session?</p>
+                <div id="complete-warning" class="alert alert-warning mt-16 hidden">
+                    Some items have not been fully received.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="complete-no">Keep Receiving</button>
+                <button class="btn btn-success" id="complete-yes">Complete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/scanner.js"></script>
+</body>
+</html>
