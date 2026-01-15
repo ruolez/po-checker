@@ -63,7 +63,6 @@ async function loadSession() {
         poData = await poResponse.json();
 
         // Update UI with PO info
-        document.getElementById('po-title').textContent = `PO #${poData.po_number}`;
         document.getElementById('po-number').textContent = `PO #${poData.po_number}`;
         document.getElementById('po-date').textContent = formatDate(poData.po_date);
         document.getElementById('po-supplier').textContent = poData.supplier_name || 'Unknown Supplier';
