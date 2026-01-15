@@ -159,6 +159,27 @@ install_app() {
     fi
 }
 
+# Run database migrations
+run_migrations() {
+    print_msg "Running database migrations..." "$YELLOW"
+
+    # Wait for PostgreSQL to be ready
+    sleep 3
+
+    # Create excluded_products table if it doesn't exist
+    docker compose exec -T postgres psql -U pochecker pochecker <<EOF 2>/dev/null || true
+CREATE TABLE IF NOT EXISTS excluded_products (
+    id SERIAL PRIMARY KEY,
+    product_upc VARCHAR(50) UNIQUE NOT NULL,
+    product_description VARCHAR(255),
+    excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);
+EOF
+
+    print_msg "Database migrations complete!" "$GREEN"
+}
+
 # Update application
 update_app() {
     print_msg "Updating PO Checker..." "$YELLOW"
@@ -210,6 +231,9 @@ update_app() {
         docker compose exec -T postgres psql -U pochecker pochecker < "${BACKUP_DIR}/database_backup.sql" 2>/dev/null || true
         print_msg "Database restored!" "$GREEN"
     fi
+
+    # Run database migrations for new tables
+    run_migrations
 
     # Clean up unused images
     cleanup_docker_images
