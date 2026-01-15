@@ -202,5 +202,65 @@ document.getElementById('shipper-form').addEventListener('submit', async (e) => 
     }
 });
 
+// Excluded products management
+async function loadExcludedProducts() {
+    const container = document.getElementById('excluded-list');
+
+    try {
+        const response = await fetch(`${API_BASE}/excluded-products`);
+        const products = await response.json();
+
+        if (products.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-desc">No excluded products</div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '';
+        products.forEach(product => {
+            const div = document.createElement('div');
+            div.className = 'excluded-item';
+            div.innerHTML = `
+                <div class="excluded-item-info">
+                    <div class="excluded-item-desc">${product.product_description || 'Unknown'}</div>
+                    <div class="excluded-item-upc">UPC: ${product.product_upc}</div>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="restoreProduct('${product.product_upc.replace(/'/g, "\\'")}')">Restore</button>
+            `;
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-desc">Failed to load excluded products</div>
+            </div>
+        `;
+    }
+}
+
+async function restoreProduct(upc) {
+    try {
+        const response = await fetch(`${API_BASE}/excluded-products/${encodeURIComponent(upc)}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to restore product');
+        }
+
+        showToast('Product restored', 'success');
+        loadExcludedProducts();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 // Load config on page load
-document.addEventListener('DOMContentLoaded', loadConfig);
+document.addEventListener('DOMContentLoaded', () => {
+    loadConfig();
+    loadExcludedProducts();
+});

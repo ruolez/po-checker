@@ -105,6 +105,56 @@ def test_shipper_connection():
     return jsonify({'success': success, 'message': message})
 
 
+# Excluded products endpoints
+@app.route('/api/excluded-products', methods=['GET'])
+def get_excluded_products():
+    try:
+        products = postgres.get_excluded_products()
+        return jsonify([{
+            'id': p['id'],
+            'product_upc': p['product_upc'],
+            'product_description': p['product_description'],
+            'excluded_at': p['excluded_at'].isoformat() if p['excluded_at'] else None
+        } for p in products])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/excluded-products', methods=['POST'])
+def add_excluded_product():
+    data = request.json
+    upc = data.get('upc', '').strip()
+    description = data.get('description', '').strip()
+
+    if not upc:
+        return jsonify({'error': 'UPC is required'}), 400
+
+    try:
+        product = postgres.add_excluded_product(upc, description)
+        return jsonify({
+            'success': True,
+            'product': {
+                'id': product['id'],
+                'product_upc': product['product_upc'],
+                'product_description': product['product_description'],
+                'excluded_at': product['excluded_at'].isoformat() if product['excluded_at'] else None
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/excluded-products/<path:upc>', methods=['DELETE'])
+def remove_excluded_product(upc):
+    try:
+        removed = postgres.remove_excluded_product(upc)
+        if not removed:
+            return jsonify({'error': 'Product not found in exclusion list'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # Purchase Order endpoints
 @app.route('/api/pos', methods=['GET'])
 def get_pos():
@@ -149,6 +199,9 @@ def get_po_details(po_id):
         if not po:
             return jsonify({'error': 'PO not found'}), 404
 
+        # Get excluded UPCs to filter out
+        excluded_upcs = postgres.get_excluded_upcs()
+
         result = {
             'po_id': po['PoID'],
             'po_number': po['PoNumber'],
@@ -165,6 +218,9 @@ def get_po_details(po_id):
         }
 
         for line in po['lines']:
+            # Skip excluded products
+            if line['ProductUPC'] in excluded_upcs:
+                continue
             result['lines'].append({
                 'line_id': line['LineID'],
                 'product_id': line['ProductID'],

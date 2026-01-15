@@ -34,8 +34,17 @@ CREATE TABLE IF NOT EXISTS scan_records (
     scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Excluded products (products to hide from PO checks)
+CREATE TABLE IF NOT EXISTS excluded_products (
+    id SERIAL PRIMARY KEY,
+    product_upc VARCHAR(50) UNIQUE NOT NULL,
+    product_description VARCHAR(255),
+    excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON receiving_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_po_id ON receiving_sessions(po_id);
 CREATE INDEX IF NOT EXISTS idx_scan_records_session ON scan_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_config_key ON config(key);
+CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);

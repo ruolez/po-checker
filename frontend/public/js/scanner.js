@@ -106,6 +106,43 @@ function updateProgress() {
     document.getElementById('progress-fill').style.width = `${percentage}%`;
 }
 
+// Exclude product from future PO checks
+async function excludeProduct(lineId, upc, description) {
+    if (!upc) {
+        showToast('Cannot exclude product without UPC', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/excluded-products`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ upc, description })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to exclude product');
+        }
+
+        // Remove from poData.lines (critical for completion check)
+        poData.lines = poData.lines.filter(l => l.line_id !== lineId);
+
+        // Remove from receivedTotals if scans exist
+        delete receivedTotals[lineId];
+
+        // Update progress bar (now excludes this item from total)
+        updateProgress();
+
+        // Re-render expected items (removes from UI)
+        renderExpectedItems();
+
+        showToast('Product excluded', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 // Render expected items list
 function renderExpectedItems() {
     if (!poData) return;
@@ -121,6 +158,7 @@ function renderExpectedItems() {
                 <th>Item</th>
                 <th style="width: 60px; text-align: right">Ord</th>
                 <th style="width: 60px; text-align: right">Rcv</th>
+                <th style="width: 40px"></th>
             </tr>
         </thead>
         <tbody id="expected-tbody"></tbody>
@@ -151,6 +189,14 @@ function renderExpectedItems() {
             </td>
             <td style="text-align: right">${ordered}</td>
             <td style="text-align: right; font-weight: 500">${received}</td>
+            <td style="text-align: center">
+                <button class="exclude-btn" title="Exclude from future POs" onclick="excludeProduct(${line.line_id}, '${(line.product_upc || '').replace(/'/g, "\\'")}', '${(line.product_description || '').replace(/'/g, "\\'")}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </td>
         `;
         tbody.appendChild(tr);
     });

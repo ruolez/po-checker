@@ -143,6 +143,41 @@ class PostgresManager:
                 """, (session_id,))
                 return cur.fetchall()
 
+    # Excluded products management
+    def get_excluded_upcs(self):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT product_upc FROM excluded_products")
+                return {row[0] for row in cur.fetchall()}
+
+    def add_excluded_product(self, upc, description):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO excluded_products (product_upc, product_description)
+                    VALUES (%s, %s)
+                    ON CONFLICT (product_upc) DO UPDATE SET
+                        product_description = EXCLUDED.product_description
+                    RETURNING *
+                """, (upc, description))
+                return cur.fetchone()
+
+    def remove_excluded_product(self, upc):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM excluded_products WHERE product_upc = %s", (upc,))
+                return cur.rowcount > 0
+
+    def get_excluded_products(self):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, product_upc, product_description, excluded_at
+                    FROM excluded_products
+                    ORDER BY excluded_at DESC
+                """)
+                return cur.fetchall()
+
 
 class MSSQLManager:
     def __init__(self, server, port, database, username, password):
