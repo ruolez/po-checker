@@ -177,6 +177,17 @@ CREATE TABLE IF NOT EXISTS excluded_products (
 CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);
 EOF
 
+    # Create excluded_suppliers table if it doesn't exist
+    docker compose exec -T postgres psql -U pochecker pochecker <<EOF 2>/dev/null || true
+CREATE TABLE IF NOT EXISTS excluded_suppliers (
+    id SERIAL PRIMARY KEY,
+    supplier_id INT UNIQUE NOT NULL,
+    supplier_name VARCHAR(255),
+    excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id);
+EOF
+
     print_msg "Database migrations complete!" "$GREEN"
 }
 

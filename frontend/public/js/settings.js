@@ -259,8 +259,66 @@ async function restoreProduct(upc) {
     }
 }
 
+// Excluded suppliers management
+async function loadExcludedSuppliers() {
+    const container = document.getElementById('excluded-suppliers-list');
+
+    try {
+        const response = await fetch(`${API_BASE}/excluded-suppliers`);
+        const suppliers = await response.json();
+
+        if (suppliers.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-desc">No excluded suppliers</div>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = '';
+        suppliers.forEach(supplier => {
+            const div = document.createElement('div');
+            div.className = 'excluded-item';
+            div.innerHTML = `
+                <div class="excluded-item-info">
+                    <div class="excluded-item-desc">${supplier.supplier_name || 'Unknown'}</div>
+                    <div class="excluded-item-upc">ID: ${supplier.supplier_id}</div>
+                </div>
+                <button class="btn btn-outline btn-sm" onclick="restoreSupplier(${supplier.supplier_id})">Restore</button>
+            `;
+            container.appendChild(div);
+        });
+    } catch (error) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-state-desc">Failed to load excluded suppliers</div>
+            </div>
+        `;
+    }
+}
+
+async function restoreSupplier(supplierId) {
+    try {
+        const response = await fetch(`${API_BASE}/excluded-suppliers/${supplierId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to restore supplier');
+        }
+
+        showToast('Supplier restored', 'success');
+        loadExcludedSuppliers();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 // Load config on page load
 document.addEventListener('DOMContentLoaded', () => {
     loadConfig();
     loadExcludedProducts();
+    loadExcludedSuppliers();
 });

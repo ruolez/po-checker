@@ -42,9 +42,18 @@ CREATE TABLE IF NOT EXISTS excluded_products (
     excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Excluded suppliers (suppliers to hide from PO list)
+CREATE TABLE IF NOT EXISTS excluded_suppliers (
+    id SERIAL PRIMARY KEY,
+    supplier_id INT UNIQUE NOT NULL,
+    supplier_name VARCHAR(255),
+    excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON receiving_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_po_id ON receiving_sessions(po_id);
 CREATE INDEX IF NOT EXISTS idx_scan_records_session ON scan_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_config_key ON config(key);
 CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);
+CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id);

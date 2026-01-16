@@ -155,6 +155,56 @@ def remove_excluded_product(upc):
         return jsonify({'error': str(e)}), 500
 
 
+# Excluded suppliers endpoints
+@app.route('/api/excluded-suppliers', methods=['GET'])
+def get_excluded_suppliers():
+    try:
+        suppliers = postgres.get_excluded_suppliers()
+        return jsonify([{
+            'id': s['id'],
+            'supplier_id': s['supplier_id'],
+            'supplier_name': s['supplier_name'],
+            'excluded_at': s['excluded_at'].isoformat() if s['excluded_at'] else None
+        } for s in suppliers])
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/excluded-suppliers', methods=['POST'])
+def add_excluded_supplier():
+    data = request.json
+    supplier_id = data.get('supplier_id')
+    supplier_name = data.get('supplier_name', '').strip()
+
+    if not supplier_id:
+        return jsonify({'error': 'Supplier ID is required'}), 400
+
+    try:
+        supplier = postgres.add_excluded_supplier(supplier_id, supplier_name)
+        return jsonify({
+            'success': True,
+            'supplier': {
+                'id': supplier['id'],
+                'supplier_id': supplier['supplier_id'],
+                'supplier_name': supplier['supplier_name'],
+                'excluded_at': supplier['excluded_at'].isoformat() if supplier['excluded_at'] else None
+            }
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/excluded-suppliers/<int:supplier_id>', methods=['DELETE'])
+def remove_excluded_supplier(supplier_id):
+    try:
+        removed = postgres.remove_excluded_supplier(supplier_id)
+        if not removed:
+            return jsonify({'error': 'Supplier not found in exclusion list'}), 404
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # Purchase Order endpoints
 @app.route('/api/pos', methods=['GET'])
 def get_pos():
@@ -169,8 +219,14 @@ def get_pos():
 
         pos = s2s.get_open_pos(supplier_id, date_from, date_to)
 
+        # Get excluded supplier IDs to filter out
+        excluded_supplier_ids = postgres.get_excluded_supplier_ids()
+
         result = []
         for po in pos:
+            # Skip POs from excluded suppliers
+            if po['SupplierID'] in excluded_supplier_ids:
+                continue
             result.append({
                 'po_id': po['PoID'],
                 'po_number': po['PoNumber'],

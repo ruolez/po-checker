@@ -309,6 +309,9 @@ body {
     font-weight: 500;
     color: var(--on-surface);
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .po-meta {
@@ -831,7 +834,7 @@ body {
     margin-bottom: 16px;
 }
 
-/* Exclude button */
+/* Exclude button - hidden by default, visible on PO item hover */
 .exclude-btn {
     background: none;
     border: none;
@@ -843,6 +846,11 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+    opacity: 0;
+}
+
+.po-item:hover .exclude-btn {
+    opacity: 1;
 }
 
 .exclude-btn:hover {

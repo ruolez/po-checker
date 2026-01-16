@@ -14,6 +14,34 @@ function showToast(message, type = 'info') {
     }, 3000);
 }
 
+// Exclude supplier
+async function excludeSupplier(supplierId, supplierName) {
+    if (!confirm(`Exclude "${supplierName}" and hide all their POs?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/excluded-suppliers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                supplier_id: supplierId,
+                supplier_name: supplierName
+            })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to exclude supplier');
+        }
+
+        showToast(`"${supplierName}" excluded`, 'success');
+        loadPOs();
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
 // Format date for display
 function formatDate(dateStr) {
     if (!dateStr) return '-';
@@ -110,12 +138,21 @@ function renderPOList(pos) {
     pos.forEach(po => {
         const li = document.createElement('li');
         li.className = 'po-item';
+        const escapedName = (po.supplier_name || 'Unknown Supplier').replace(/'/g, "\\'").replace(/"/g, '\\"');
         li.innerHTML = `
             <div class="po-header">
                 <span class="po-number">${po.po_number || 'No Number'}</span>
                 <span class="po-date">${formatDate(po.po_date)}</span>
             </div>
-            <div class="po-supplier">${po.supplier_name || 'Unknown Supplier'}</div>
+            <div class="po-supplier">
+                ${po.supplier_name || 'Unknown Supplier'}
+                <button class="exclude-btn" onclick="event.stopPropagation(); excludeSupplier(${po.supplier_id}, '${escapedName}')" title="Exclude this supplier">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                    </svg>
+                </button>
+            </div>
             <div class="po-meta">
                 <span>📦 ${po.total_qty_ordered || 0} items ordered</span>
                 <span>📝 ${po.num_lines || 0} lines</span>

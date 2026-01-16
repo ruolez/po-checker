@@ -202,6 +202,64 @@ class PostgresManager:
                 """)
                 return cur.fetchall()
 
+    # Excluded suppliers management
+    def ensure_excluded_suppliers_table(self):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS excluded_suppliers (
+                        id SERIAL PRIMARY KEY,
+                        supplier_id INT UNIQUE NOT NULL,
+                        supplier_name VARCHAR(255),
+                        excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                cur.execute("CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id)")
+
+    def get_excluded_supplier_ids(self):
+        try:
+            with self.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT supplier_id FROM excluded_suppliers")
+                    return {row[0] for row in cur.fetchall()}
+        except Exception:
+            try:
+                self.ensure_excluded_suppliers_table()
+                return set()
+            except Exception:
+                return set()
+
+    def add_excluded_supplier(self, supplier_id, supplier_name):
+        self.ensure_excluded_suppliers_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO excluded_suppliers (supplier_id, supplier_name)
+                    VALUES (%s, %s)
+                    ON CONFLICT (supplier_id) DO UPDATE SET
+                        supplier_name = EXCLUDED.supplier_name
+                    RETURNING *
+                """, (supplier_id, supplier_name))
+                return cur.fetchone()
+
+    def remove_excluded_supplier(self, supplier_id):
+        self.ensure_excluded_suppliers_table()
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM excluded_suppliers WHERE supplier_id = %s", (supplier_id,))
+                return cur.rowcount > 0
+
+    def get_excluded_suppliers(self):
+        self.ensure_excluded_suppliers_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, supplier_id, supplier_name, excluded_at
+                    FROM excluded_suppliers
+                    ORDER BY excluded_at DESC
+                """)
+                return cur.fetchall()
+
 
 class MSSQLManager:
     def __init__(self, server, port, database, username, password):
