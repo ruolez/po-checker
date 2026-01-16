@@ -835,7 +835,7 @@ body {
     margin-bottom: 16px;
 }
 
-/* Exclude button - hidden by default, visible on PO item hover */
+/* Exclude button */
 .exclude-btn {
     background: none;
     border: none;
@@ -847,6 +847,10 @@ body {
     align-items: center;
     justify-content: center;
     transition: all 0.2s;
+}
+
+/* Hidden by default in PO list, visible on hover */
+.po-item .exclude-btn {
     opacity: 0;
 }
 
