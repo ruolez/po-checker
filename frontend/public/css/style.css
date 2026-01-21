@@ -334,15 +334,18 @@ body {
 }
 
 .po-item {
-    background-color: var(--surface);
+    background: linear-gradient(to bottom, #ffffff 0%, #f9fafb 100%);
     border-radius: 12px;
     border: 1px solid var(--outline);
-    border-left: 4px solid var(--accent-1);
+    border-left: 5px solid var(--accent-1);
     padding: 16px;
-    margin-bottom: 10px;
-    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+    box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.06),
+        0 4px 12px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease, background-color 0.15s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.15s ease;
 }
 
 /* 4-color rotation for visual distinction */
@@ -351,13 +354,16 @@ body {
 .po-item:nth-child(4n)   { border-left-color: var(--accent-4); }
 
 .po-item:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-lg);
-    background-color: #fafbfc;
+    transform: translateY(-4px) scale(1.01);
+    box-shadow:
+        0 8px 16px rgba(0, 0, 0, 0.1),
+        0 16px 32px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border-color: rgba(0, 0, 0, 0.1);
 }
 
 .po-item:active {
-    transform: translateY(0);
+    transform: translateY(-1px) scale(1.005);
 }
 
 .po-header {
