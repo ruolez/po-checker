@@ -8,6 +8,8 @@ let receivedTotals = {};
 let recentScans = [];
 let pendingProduct = null;
 let quickScanMode = localStorage.getItem('quickScanMode') === 'true';
+let autoCompleteTimer = null;
+let countdownInterval = null;
 
 // Get session ID from URL
 const urlParams = new URLSearchParams(window.location.search);
@@ -105,6 +107,59 @@ function updateProgress() {
 
     document.getElementById('progress-text').textContent = `${totalReceived} / ${totalOrdered} items`;
     document.getElementById('progress-fill').style.width = `${percentage}%`;
+}
+
+// Check if PO is fully received
+function isPOComplete() {
+    if (!poData || poData.lines.length === 0) return false;
+
+    for (const line of poData.lines) {
+        const ordered = line.qty_ordered || 0;
+        const received = receivedTotals[line.line_id] || 0;
+        if (received < ordered) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Start auto-complete countdown
+function startAutoComplete() {
+    let secondsLeft = 5;
+    document.getElementById('countdown-seconds').textContent = secondsLeft;
+    showElement('auto-complete-overlay');
+
+    countdownInterval = setInterval(() => {
+        secondsLeft--;
+        document.getElementById('countdown-seconds').textContent = secondsLeft;
+    }, 1000);
+
+    autoCompleteTimer = setTimeout(async () => {
+        clearInterval(countdownInterval);
+        try {
+            await fetch(`${API_BASE}/sessions/${sessionId}/complete`, {
+                method: 'POST'
+            });
+            window.location.href = `/summary.html?session=${sessionId}`;
+        } catch (error) {
+            hideElement('auto-complete-overlay');
+            showToast('Failed to complete session', 'error');
+        }
+    }, 5000);
+}
+
+// Cancel auto-complete
+function cancelAutoComplete() {
+    if (autoCompleteTimer) {
+        clearTimeout(autoCompleteTimer);
+        autoCompleteTimer = null;
+    }
+    if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+    }
+    hideElement('auto-complete-overlay');
+    document.getElementById('scan-input').focus();
 }
 
 // Exclude product from future PO checks
@@ -398,6 +453,11 @@ function handleScanSuccess(result) {
     const type = result.scan.barcode_type === 'case' ? ' (Case)' : '';
     document.getElementById('scan-status').textContent = `Added ${qty}x ${result.scan.product_description}${type}`;
     showToast(`+${qty} ${result.scan.product_description}`, 'success');
+
+    // Check if PO is complete and start auto-complete countdown
+    if (isPOComplete()) {
+        startAutoComplete();
+    }
 }
 
 // Confirm quantity from modal
@@ -561,6 +621,9 @@ document.getElementById('complete-yes').addEventListener('click', async () => {
         showToast('Failed to complete session', 'error');
     }
 });
+
+// Auto-complete cancel button
+document.getElementById('cancel-auto-complete').addEventListener('click', cancelAutoComplete);
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {

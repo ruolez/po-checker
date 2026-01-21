@@ -1169,3 +1169,62 @@ body {
         width: 100%;
     }
 }
+
+/* Auto-Complete Modal */
+.auto-complete-modal {
+    text-align: center;
+    padding: 32px 24px;
+}
+
+.auto-complete-icon {
+    color: var(--success);
+    margin-bottom: 16px;
+    animation: scaleIn 0.3s ease-out;
+}
+
+.auto-complete-icon svg {
+    stroke-width: 2.5;
+}
+
+@keyframes scaleIn {
+    0% {
+        transform: scale(0);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.auto-complete-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--success);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+}
+
+.auto-complete-desc {
+    font-size: 16px;
+    color: var(--on-surface-secondary);
+    margin-bottom: 20px;
+}
+
+.auto-complete-countdown {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--on-surface);
+    padding: 12px 20px;
+    background-color: var(--success-light);
+    border-radius: 10px;
+    display: inline-block;
+}
+
+.auto-complete-countdown span {
+    color: var(--success);
+    font-size: 24px;
+}
