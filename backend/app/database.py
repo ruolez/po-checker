@@ -342,6 +342,17 @@ class PostgresManager:
                 """, (session_id, line_id))
                 return cur.fetchone()[0]
 
+    def cancel_all_active_sessions(self):
+        """Cancel all in-progress sessions (called before creating new session)."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE receiving_sessions
+                    SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
+                    WHERE status = 'in_progress'
+                """)
+                return cur.rowcount
+
 
 class MSSQLManager:
     def __init__(self, server, port, database, username, password):

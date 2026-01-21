@@ -2,8 +2,6 @@
 
 const API_BASE = '/api';
 
-let activeSession = null;
-
 // Toast notification
 function showToast(message, type = 'info') {
     const toast = document.getElementById('toast');
@@ -163,23 +161,6 @@ function renderPOList(pos) {
     });
 }
 
-// Check for active session
-async function checkActiveSession() {
-    try {
-        const response = await fetch(`${API_BASE}/sessions/active`);
-        const session = await response.json();
-
-        if (session && session.id) {
-            activeSession = session;
-            document.getElementById('resume-po-number').textContent = `PO #${session.po_number}`;
-            document.getElementById('resume-supplier').textContent = session.supplier_name || 'Unknown Supplier';
-            showElement('resume-modal');
-        }
-    } catch (error) {
-        console.error('Failed to check active session:', error);
-    }
-}
-
 // Start receiving for a PO
 async function startReceiving(po) {
     try {
@@ -206,27 +187,6 @@ async function startReceiving(po) {
     }
 }
 
-// Resume modal handlers
-document.getElementById('resume-continue').addEventListener('click', () => {
-    if (activeSession) {
-        window.location.href = `/receive.html?session=${activeSession.id}`;
-    }
-});
-
-document.getElementById('resume-cancel').addEventListener('click', async () => {
-    if (activeSession) {
-        try {
-            await fetch(`${API_BASE}/sessions/${activeSession.id}/cancel`, {
-                method: 'POST'
-            });
-        } catch (error) {
-            console.error('Failed to cancel session:', error);
-        }
-    }
-    hideElement('resume-modal');
-    activeSession = null;
-});
-
 // Filter change handlers
 document.getElementById('filter-supplier').addEventListener('change', loadPOs);
 document.getElementById('filter-date-from').addEventListener('change', loadPOs);
@@ -242,5 +202,4 @@ document.getElementById('filters-toggle').addEventListener('click', () => {
 document.addEventListener('DOMContentLoaded', async () => {
     await loadSuppliers();
     await loadPOs();
-    await checkActiveSession();
 });

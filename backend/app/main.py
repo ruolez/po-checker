@@ -319,6 +319,8 @@ def create_session():
         return jsonify({'error': 'Missing required fields'}), 400
 
     try:
+        postgres.cancel_all_active_sessions()
+
         session = postgres.create_session(
             po_id=data['po_id'],
             po_number=data['po_number'],
