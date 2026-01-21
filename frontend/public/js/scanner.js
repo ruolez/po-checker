@@ -254,7 +254,7 @@ function renderExpectedItems() {
         tr.onclick = (e) => {
             // Don't trigger if clicking the exclude button
             if (e.target.closest('.exclude-btn')) return;
-            quickScanProduct('${(line.product_upc || '').replace(/'/g, "\\'")}');
+            quickScanProduct(line.product_upc || '');
         };
         tr.innerHTML = `
             <td>
