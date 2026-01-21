@@ -450,8 +450,8 @@ def process_scan(session_id):
                 'unit_barcode': unit_barcode if barcode_type == 'case' else None
             }), 400
 
-        # Get current received total for this line from session
-        current_received = postgres.get_line_total_received(session_id, matching_line['LineID']) or 0
+        # Get current received total from SQL Server
+        current_received = matching_line['QtyReceived'] or 0
         qty_ordered = matching_line['QtyOrdered'] or 0
         remaining = max(0, qty_ordered - current_received)
 

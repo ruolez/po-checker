@@ -69,9 +69,9 @@ async function loadSession() {
         document.getElementById('po-date').textContent = formatDate(poData.po_date);
         document.getElementById('po-supplier').textContent = poData.supplier_name || 'Unknown Supplier';
 
-        // Load existing scan totals
-        session.totals.forEach(t => {
-            receivedTotals[t.line_id] = t.total_received;
+        // Load received totals from SQL Server PO data
+        poData.lines.forEach(line => {
+            receivedTotals[line.line_id] = line.qty_received || 0;
         });
 
         // Load recent scans
