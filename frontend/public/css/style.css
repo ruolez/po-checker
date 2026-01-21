@@ -968,6 +968,31 @@ body {
     color: var(--error);
 }
 
+/* Quick Scan button */
+.quick-scan-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: var(--primary);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    margin-right: 4px;
+}
+
+.quick-scan-btn:hover {
+    background-color: var(--primary-light);
+    color: var(--primary-hover);
+}
+
+.quick-scan-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
 /* Excluded products list */
 .excluded-list {
     margin-top: 8px;
