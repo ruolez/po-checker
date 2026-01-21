@@ -227,7 +227,7 @@ function renderExpectedItems() {
                 <th>Item</th>
                 <th style="width: 60px; text-align: right">Ord</th>
                 <th style="width: 60px; text-align: right">Rcv</th>
-                <th style="width: 60px"></th>
+                <th style="width: 40px"></th>
             </tr>
         </thead>
         <tbody id="expected-tbody"></tbody>
@@ -250,7 +250,12 @@ function renderExpectedItems() {
         }
 
         const tr = document.createElement('tr');
-        tr.className = rowClass;
+        tr.className = rowClass + ' clickable-row';
+        tr.onclick = (e) => {
+            // Don't trigger if clicking the exclude button
+            if (e.target.closest('.exclude-btn')) return;
+            quickScanProduct('${(line.product_upc || '').replace(/'/g, "\\'")}');
+        };
         tr.innerHTML = `
             <td>
                 <div style="font-weight: 500">${line.product_description || 'Unknown'}</div>
@@ -259,11 +264,6 @@ function renderExpectedItems() {
             <td style="text-align: right">${ordered}</td>
             <td style="text-align: right; font-weight: 500">${received}</td>
             <td style="text-align: center">
-                <button class="quick-scan-btn" title="Quick scan this product" onclick="quickScanProduct('${(line.product_upc || '').replace(/'/g, "\\'")}')">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="20 6 9 17 4 12"></polyline>
-                    </svg>
-                </button>
                 <button class="exclude-btn" title="Exclude from future POs" onclick="excludeProduct(${line.line_id}, '${(line.product_upc || '').replace(/'/g, "\\'")}', '${(line.product_description || '').replace(/'/g, "\\'")}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>

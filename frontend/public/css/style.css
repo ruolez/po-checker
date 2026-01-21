@@ -968,29 +968,18 @@ body {
     color: var(--error);
 }
 
-/* Quick Scan button */
-.quick-scan-btn {
-    background: none;
-    border: none;
-    padding: 4px;
+/* Clickable row for quick scan */
+.clickable-row {
     cursor: pointer;
-    color: var(--primary);
-    border-radius: 4px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    margin-right: 4px;
+    transition: background-color 0.15s ease;
 }
 
-.quick-scan-btn:hover {
-    background-color: var(--primary-light);
-    color: var(--primary-hover);
+.clickable-row:hover {
+    background-color: var(--primary-light) !important;
 }
 
-.quick-scan-btn:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
+.clickable-row:active {
+    background-color: #dbeafe !important;
 }
 
 /* Excluded products list */
