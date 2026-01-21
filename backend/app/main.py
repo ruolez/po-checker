@@ -397,6 +397,8 @@ def get_session(session_id):
 def process_scan(session_id):
     data = request.json
     barcode = data.get('barcode', '').strip()
+    mode = data.get('mode', 'record')  # 'validate' or 'record'
+    custom_quantity = data.get('quantity')  # Optional quantity override
 
     if not barcode:
         return jsonify({'error': 'Barcode is required'}), 400
@@ -412,6 +414,9 @@ def process_scan(session_id):
 
     shipper = get_shipper_manager()
 
+    # Get excluded UPCs to filter out
+    excluded_upcs = postgres.get_excluded_upcs()
+
     try:
         po = s2s.get_po_details(session['po_id'])
         if not po:
@@ -419,19 +424,21 @@ def process_scan(session_id):
 
         # Check if barcode is a case barcode
         unit_barcode = barcode
-        quantity = 1
+        detected_quantity = 1
         barcode_type = 'product'
 
         if shipper:
             case_info = shipper.find_case_barcode(barcode)
             if case_info:
                 unit_barcode = case_info['unit_barcode']
-                quantity = case_info['quantity']
+                detected_quantity = case_info['quantity']
                 barcode_type = 'case'
 
-        # Find matching line in PO
+        # Find matching line in PO (excluding excluded products)
         matching_line = None
         for line in po['lines']:
+            if line['ProductUPC'] in excluded_upcs:
+                continue
             if line['ProductUPC'] == unit_barcode:
                 matching_line = line
                 break
@@ -442,6 +449,40 @@ def process_scan(session_id):
                 'barcode': barcode,
                 'unit_barcode': unit_barcode if barcode_type == 'case' else None
             }), 400
+
+        # Get current received total for this line from session
+        current_received = postgres.get_line_total_received(session_id, matching_line['LineID']) or 0
+        qty_ordered = matching_line['QtyOrdered'] or 0
+        remaining = max(0, qty_ordered - current_received)
+
+        # VALIDATE MODE: Return product info without recording
+        if mode == 'validate':
+            return jsonify({
+                'success': True,
+                'mode': 'validate',
+                'product': {
+                    'line_id': matching_line['LineID'],
+                    'product_upc': unit_barcode,
+                    'product_description': matching_line['ProductDescription'],
+                    'barcode_type': barcode_type,
+                    'detected_quantity': detected_quantity,
+                    'qty_ordered': qty_ordered,
+                    'qty_received': current_received,
+                    'remaining': remaining
+                }
+            })
+
+        # RECORD MODE: Use custom quantity if provided, otherwise use detected
+        quantity = custom_quantity if custom_quantity is not None else detected_quantity
+
+        # Validate quantity
+        if quantity is not None:
+            try:
+                quantity = int(quantity)
+                if quantity < 1:
+                    return jsonify({'error': 'Quantity must be at least 1'}), 400
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid quantity'}), 400
 
         # Record the scan
         scan = postgres.add_scan_record(
@@ -481,6 +522,7 @@ def process_scan(session_id):
 
         response = {
             'success': True,
+            'mode': 'record',
             's2s_synced': s2s_synced,
             'scan': {
                 'id': scan['id'],

@@ -33,6 +33,13 @@
 
         <!-- Scan Input -->
         <section class="scan-container">
+            <div class="quick-scan-toggle">
+                <label class="toggle-label">
+                    <input type="checkbox" id="quick-scan-toggle">
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">Quick Scan Mode</span>
+                </label>
+            </div>
             <input
                 type="text"
                 class="scan-input"
@@ -105,6 +112,45 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" id="complete-no">Keep Receiving</button>
                 <button class="btn btn-success" id="complete-yes">Complete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quantity Entry Modal -->
+    <div id="quantity-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Enter Quantity</h2>
+            </div>
+            <div class="modal-body">
+                <div class="qty-product-name" id="qty-product-name"></div>
+                <div class="qty-product-upc" id="qty-product-upc"></div>
+                <div class="qty-scan-type" id="qty-scan-type"></div>
+
+                <div class="qty-stats">
+                    <div class="qty-stat">
+                        <span class="qty-stat-label">Ordered</span>
+                        <span class="qty-stat-value" id="qty-ordered">0</span>
+                    </div>
+                    <div class="qty-stat">
+                        <span class="qty-stat-label">Received</span>
+                        <span class="qty-stat-value" id="qty-received">0</span>
+                    </div>
+                    <div class="qty-stat">
+                        <span class="qty-stat-label">Remaining</span>
+                        <span class="qty-stat-value qty-stat-remaining" id="qty-remaining">0</span>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" id="qty-label">Quantity</label>
+                    <input type="number" class="form-input qty-input" id="qty-input" min="1" inputmode="numeric" autocomplete="off">
+                </div>
+            </div>
+            <div class="modal-footer qty-modal-footer">
+                <button class="btn btn-outline" id="qty-cancel">Cancel</button>
+                <button class="btn btn-secondary" id="qty-receive-all">Receive All</button>
+                <button class="btn btn-primary" id="qty-confirm">Confirm</button>
             </div>
         </div>
     </div>

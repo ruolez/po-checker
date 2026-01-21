@@ -6,6 +6,8 @@ let sessionId = null;
 let poData = null;
 let receivedTotals = {};
 let recentScans = [];
+let pendingProduct = null;
+let quickScanMode = localStorage.getItem('quickScanMode') === 'true';
 
 // Get session ID from URL
 const urlParams = new URLSearchParams(window.location.search);
@@ -231,48 +233,213 @@ function renderRecentScans() {
     });
 }
 
-// Process barcode scan
+// Validate barcode (mode=validate) - returns product info without recording
+async function validateBarcode(barcode) {
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ barcode: barcode.trim(), mode: 'validate' })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || 'Barcode not found');
+    }
+
+    return result;
+}
+
+// Record scan with quantity (mode=record)
+async function recordScan(barcode, quantity = null) {
+    const body = { barcode: barcode.trim(), mode: 'record' };
+    if (quantity !== null) {
+        body.quantity = quantity;
+    }
+
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+        throw new Error(result.error || 'Scan failed');
+    }
+
+    return result;
+}
+
+// Show quantity modal
+function showQuantityModal(product, barcode) {
+    const nameEl = document.getElementById('qty-product-name');
+    const upcEl = document.getElementById('qty-product-upc');
+    const typeEl = document.getElementById('qty-scan-type');
+    const orderedEl = document.getElementById('qty-ordered');
+    const receivedEl = document.getElementById('qty-received');
+    const remainingEl = document.getElementById('qty-remaining');
+    const labelEl = document.getElementById('qty-label');
+    const inputEl = document.getElementById('qty-input');
+
+    nameEl.textContent = product.product_description || 'Unknown Product';
+    upcEl.textContent = product.product_upc;
+
+    if (product.barcode_type === 'case') {
+        typeEl.textContent = `Case (${product.detected_quantity} units each)`;
+        typeEl.className = 'qty-scan-type case';
+        labelEl.textContent = `Cases (×${product.detected_quantity} units each)`;
+    } else {
+        typeEl.textContent = 'Unit';
+        typeEl.className = 'qty-scan-type product';
+        labelEl.textContent = 'Quantity';
+    }
+
+    orderedEl.textContent = product.qty_ordered;
+    receivedEl.textContent = product.qty_received;
+    remainingEl.textContent = product.remaining;
+
+    // Set default value: 1 for units, or remaining/detected_quantity for cases (rounded up)
+    if (product.barcode_type === 'case') {
+        const casesRemaining = Math.ceil(product.remaining / product.detected_quantity);
+        inputEl.value = Math.max(1, casesRemaining);
+    } else {
+        inputEl.value = Math.max(1, product.remaining);
+    }
+
+    pendingProduct = { ...product, barcode };
+    showElement('quantity-modal');
+
+    // Focus and select input
+    setTimeout(() => {
+        inputEl.focus();
+        inputEl.select();
+    }, 100);
+}
+
+// Hide quantity modal
+function hideQuantityModal() {
+    hideElement('quantity-modal');
+    pendingProduct = null;
+    document.getElementById('scan-input').focus();
+}
+
+// Calculate final quantity from modal input
+function calculateFinalQuantity() {
+    const inputEl = document.getElementById('qty-input');
+    let quantity = parseInt(inputEl.value, 10);
+
+    if (isNaN(quantity) || quantity < 1) {
+        return null;
+    }
+
+    // For case scans, multiply by units per case
+    if (pendingProduct && pendingProduct.barcode_type === 'case') {
+        quantity = quantity * pendingProduct.detected_quantity;
+    }
+
+    return quantity;
+}
+
+// Process barcode scan - main entry point
 async function processScan(barcode) {
     if (!barcode.trim()) return;
+
+    // If modal is open and new scan comes in, cancel current and process new
+    if (pendingProduct) {
+        hideQuantityModal();
+    }
 
     hideElement('scan-error');
     document.getElementById('scan-status').textContent = 'Processing...';
 
     try {
-        const response = await fetch(`${API_BASE}/sessions/${sessionId}/scan`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ barcode: barcode.trim() })
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'Scan failed');
+        if (quickScanMode) {
+            // Quick Scan Mode: Record immediately with detected quantity
+            const result = await recordScan(barcode);
+            handleScanSuccess(result);
+        } else {
+            // Normal Mode: Validate first, show modal
+            const result = await validateBarcode(barcode);
+            if (result.success && result.product) {
+                document.getElementById('scan-status').textContent = 'Enter quantity...';
+                showQuantityModal(result.product, barcode);
+            }
         }
+    } catch (error) {
+        document.getElementById('scan-error').textContent = error.message;
+        showElement('scan-error');
+        document.getElementById('scan-status').textContent = 'Scan failed - try again';
+        showToast(error.message, 'error');
+    }
+}
 
-        // Update received totals
-        result.totals.forEach(t => {
-            receivedTotals[t.line_id] = t.total_received;
-        });
+// Handle successful scan record
+function handleScanSuccess(result) {
+    // Update received totals
+    result.totals.forEach(t => {
+        receivedTotals[t.line_id] = t.total_received;
+    });
 
-        // Add to recent scans
-        recentScans.unshift(result.scan);
-        if (recentScans.length > 10) {
-            recentScans.pop();
-        }
+    // Add to recent scans
+    recentScans.unshift(result.scan);
+    if (recentScans.length > 10) {
+        recentScans.pop();
+    }
 
-        // Update UI
-        updateProgress();
-        renderExpectedItems();
-        renderRecentScans();
+    // Update UI
+    updateProgress();
+    renderExpectedItems();
+    renderRecentScans();
 
-        // Show success
-        const qty = result.scan.quantity;
-        const type = result.scan.barcode_type === 'case' ? ' (Case)' : '';
-        document.getElementById('scan-status').textContent = `Added ${qty}x ${result.scan.product_description}${type}`;
-        showToast(`+${qty} ${result.scan.product_description}`, 'success');
+    // Show success
+    const qty = result.scan.quantity;
+    const type = result.scan.barcode_type === 'case' ? ' (Case)' : '';
+    document.getElementById('scan-status').textContent = `Added ${qty}x ${result.scan.product_description}${type}`;
+    showToast(`+${qty} ${result.scan.product_description}`, 'success');
+}
 
+// Confirm quantity from modal
+async function confirmQuantity() {
+    if (!pendingProduct) return;
+
+    const quantity = calculateFinalQuantity();
+    if (quantity === null) {
+        showToast('Please enter a valid quantity', 'error');
+        return;
+    }
+
+    const barcode = pendingProduct.barcode;
+    hideQuantityModal();
+
+    try {
+        const result = await recordScan(barcode, quantity);
+        handleScanSuccess(result);
+    } catch (error) {
+        document.getElementById('scan-error').textContent = error.message;
+        showElement('scan-error');
+        document.getElementById('scan-status').textContent = 'Scan failed - try again';
+        showToast(error.message, 'error');
+    }
+}
+
+// Receive all remaining
+async function receiveAll() {
+    if (!pendingProduct) return;
+
+    const remaining = pendingProduct.remaining;
+    if (remaining < 1) {
+        showToast('No remaining items to receive', 'error');
+        return;
+    }
+
+    const barcode = pendingProduct.barcode;
+    hideQuantityModal();
+
+    try {
+        const result = await recordScan(barcode, remaining);
+        handleScanSuccess(result);
     } catch (error) {
         document.getElementById('scan-error').textContent = error.message;
         showElement('scan-error');
@@ -293,11 +460,46 @@ scanInput.addEventListener('keydown', (e) => {
     }
 });
 
-// Keep focus on scan input
+// Keep focus on scan input (unless modal is open)
 scanInput.addEventListener('blur', () => {
     setTimeout(() => {
-        scanInput.focus();
+        if (!pendingProduct) {
+            scanInput.focus();
+        }
     }, 100);
+});
+
+// Quick Scan Mode toggle
+const quickScanToggle = document.getElementById('quick-scan-toggle');
+quickScanToggle.checked = quickScanMode;
+
+quickScanToggle.addEventListener('change', () => {
+    quickScanMode = quickScanToggle.checked;
+    localStorage.setItem('quickScanMode', quickScanMode);
+    showToast(quickScanMode ? 'Quick Scan Mode ON' : 'Quick Scan Mode OFF', 'info');
+});
+
+// Quantity modal handlers
+document.getElementById('qty-cancel').addEventListener('click', hideQuantityModal);
+document.getElementById('qty-confirm').addEventListener('click', confirmQuantity);
+document.getElementById('qty-receive-all').addEventListener('click', receiveAll);
+
+// Handle Enter key in quantity input
+document.getElementById('qty-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmQuantity();
+    } else if (e.key === 'Escape') {
+        e.preventDefault();
+        hideQuantityModal();
+    }
+});
+
+// Close modal on overlay click
+document.getElementById('quantity-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'quantity-modal') {
+        hideQuantityModal();
+    }
 });
 
 // Cancel button
