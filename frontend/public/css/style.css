@@ -23,6 +23,12 @@
     --on-surface-secondary: #64748b;
     --outline: #e2e8f0;
 
+    /* Accent colors for PO card borders */
+    --accent-1: #3b82f6;  /* blue */
+    --accent-2: #8b5cf6;  /* violet */
+    --accent-3: #06b6d4;  /* cyan */
+    --accent-4: #10b981;  /* emerald */
+
     /* Layered shadow system */
     --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
@@ -331,17 +337,23 @@ body {
     background-color: var(--surface);
     border-radius: 12px;
     border: 1px solid var(--outline);
+    border-left: 4px solid var(--accent-1);
     padding: 16px;
     margin-bottom: 10px;
     box-shadow: var(--shadow-sm);
     cursor: pointer;
-    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
+    transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
+/* 4-color rotation for visual distinction */
+.po-item:nth-child(4n+2) { border-left-color: var(--accent-2); }
+.po-item:nth-child(4n+3) { border-left-color: var(--accent-3); }
+.po-item:nth-child(4n)   { border-left-color: var(--accent-4); }
+
 .po-item:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-md);
-    border-color: var(--primary-light);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    background-color: #fafbfc;
 }
 
 .po-item:active {
