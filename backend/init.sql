@@ -50,6 +50,19 @@ CREATE TABLE IF NOT EXISTS excluded_suppliers (
     excluded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Pending S2S syncs (for retry on failure)
+CREATE TABLE IF NOT EXISTS pending_s2s_syncs (
+    id SERIAL PRIMARY KEY,
+    scan_record_id INT REFERENCES scan_records(id) ON DELETE CASCADE,
+    line_id INT NOT NULL,
+    po_id INT NOT NULL,
+    qty_received REAL NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    retry_count INT DEFAULT 0,
+    last_error TEXT,
+    synced_at TIMESTAMP
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON receiving_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_po_id ON receiving_sessions(po_id);
@@ -57,3 +70,4 @@ CREATE INDEX IF NOT EXISTS idx_scan_records_session ON scan_records(session_id);
 CREATE INDEX IF NOT EXISTS idx_config_key ON config(key);
 CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);
 CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_pending_syncs_synced ON pending_s2s_syncs(synced_at) WHERE synced_at IS NULL;

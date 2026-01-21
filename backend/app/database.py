@@ -260,6 +260,88 @@ class PostgresManager:
                 """)
                 return cur.fetchall()
 
+    # Pending S2S sync management
+    def ensure_pending_syncs_table(self):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS pending_s2s_syncs (
+                        id SERIAL PRIMARY KEY,
+                        scan_record_id INT REFERENCES scan_records(id) ON DELETE CASCADE,
+                        line_id INT NOT NULL,
+                        po_id INT NOT NULL,
+                        qty_received REAL NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        retry_count INT DEFAULT 0,
+                        last_error TEXT,
+                        synced_at TIMESTAMP
+                    )
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_pending_syncs_synced
+                    ON pending_s2s_syncs(synced_at) WHERE synced_at IS NULL
+                """)
+
+    def add_pending_sync(self, scan_record_id, line_id, po_id, qty_received, error=None):
+        self.ensure_pending_syncs_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO pending_s2s_syncs (scan_record_id, line_id, po_id, qty_received, last_error)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING *
+                """, (scan_record_id, line_id, po_id, qty_received, error))
+                return cur.fetchone()
+
+    def mark_sync_complete(self, sync_id):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE pending_s2s_syncs
+                    SET synced_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (sync_id,))
+
+    def get_pending_syncs(self, limit=100):
+        self.ensure_pending_syncs_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, scan_record_id, line_id, po_id, qty_received, created_at, retry_count, last_error
+                    FROM pending_s2s_syncs
+                    WHERE synced_at IS NULL
+                    ORDER BY created_at ASC
+                    LIMIT %s
+                """, (limit,))
+                return cur.fetchall()
+
+    def get_pending_sync_count(self):
+        self.ensure_pending_syncs_table()
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM pending_s2s_syncs WHERE synced_at IS NULL")
+                return cur.fetchone()[0]
+
+    def update_sync_error(self, sync_id, error):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE pending_s2s_syncs
+                    SET last_error = %s, retry_count = retry_count + 1
+                    WHERE id = %s
+                """, (error, sync_id))
+
+    def get_line_total_received(self, session_id, line_id):
+        """Get cumulative total received for a specific line in a session."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT COALESCE(SUM(quantity), 0)
+                    FROM scan_records
+                    WHERE session_id = %s AND line_id = %s
+                """, (session_id, line_id))
+                return cur.fetchone()[0]
+
 
 class MSSQLManager:
     def __init__(self, server, port, database, username, password):
@@ -411,6 +493,41 @@ class S2SManager(MSSQLManager):
                 WHERE ProductUPC = %s
             """, (upc,))
             return cursor.fetchone()
+
+    def update_line_qty_received(self, line_id, qty_received):
+        """SET QtyReceived and DateReceived for a PO line item."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE PurchaseOrdersDetails_tbl
+                    SET QtyReceived = %s,
+                        DateReceived = CASE WHEN DateReceived IS NULL THEN GETDATE() ELSE DateReceived END
+                    WHERE LineID = %s
+                """, (qty_received, line_id))
+                conn.commit()
+                return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def update_po_total_received(self, po_id):
+        """Recalculate TotQtyRcv from sum of line items."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE PurchaseOrders_tbl
+                    SET TotQtyRcv = (
+                        SELECT ISNULL(SUM(ISNULL(QtyReceived, 0)), 0)
+                        FROM PurchaseOrdersDetails_tbl
+                        WHERE PoID = %s
+                    )
+                    WHERE PoID = %s
+                """, (po_id, po_id))
+                conn.commit()
+                return True, None
+        except Exception as e:
+            return False, str(e)
 
 
 class ShipperDBManager(MSSQLManager):

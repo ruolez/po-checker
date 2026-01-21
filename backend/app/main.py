@@ -457,8 +457,31 @@ def process_scan(session_id):
         # Get updated totals
         totals = postgres.get_session_totals(session_id)
 
-        return jsonify({
+        # Sync to S2S database
+        s2s_synced = False
+        s2s_warning = None
+        line_id = matching_line['LineID']
+        po_id = session['po_id']
+
+        # Get cumulative total for this line
+        line_total = postgres.get_line_total_received(session_id, line_id)
+
+        # Try to update S2S
+        success, error = s2s.update_line_qty_received(line_id, line_total)
+        if success:
+            success, error = s2s.update_po_total_received(po_id)
+            if success:
+                s2s_synced = True
+            else:
+                s2s_warning = f"Failed to update PO total: {error}"
+                postgres.add_pending_sync(scan['id'], line_id, po_id, line_total, error)
+        else:
+            s2s_warning = f"Failed to sync to S2S: {error}"
+            postgres.add_pending_sync(scan['id'], line_id, po_id, line_total, error)
+
+        response = {
             'success': True,
+            's2s_synced': s2s_synced,
             'scan': {
                 'id': scan['id'],
                 'barcode': scan['barcode'],
@@ -474,7 +497,12 @@ def process_scan(session_id):
                 'product_description': t['product_description'],
                 'total_received': t['total_received']
             } for t in totals]
-        })
+        }
+
+        if s2s_warning:
+            response['s2s_warning'] = s2s_warning
+
+        return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -482,14 +510,47 @@ def process_scan(session_id):
 @app.route('/api/sessions/<int:session_id>/complete', methods=['POST'])
 def complete_session(session_id):
     try:
-        session = postgres.update_session_status(session_id, 'completed')
+        session = postgres.get_session(session_id)
         if not session:
             return jsonify({'error': 'Session not found'}), 404
-        return jsonify({
+
+        # Perform final sync attempt for all session totals
+        s2s = get_s2s_manager()
+        sync_results = {'synced': True, 'warnings': []}
+
+        if s2s:
+            totals = postgres.get_session_totals(session_id)
+            po_id = session['po_id']
+
+            for total in totals:
+                line_id = total['line_id']
+                qty_received = total['total_received']
+
+                success, error = s2s.update_line_qty_received(line_id, qty_received)
+                if not success:
+                    sync_results['synced'] = False
+                    sync_results['warnings'].append(f"Line {line_id}: {error}")
+
+            # Update PO total once after all lines
+            success, error = s2s.update_po_total_received(po_id)
+            if not success:
+                sync_results['synced'] = False
+                sync_results['warnings'].append(f"PO total: {error}")
+
+        # Mark session as completed
+        session = postgres.update_session_status(session_id, 'completed')
+
+        response = {
             'id': session['id'],
             'status': session['status'],
-            'completed_at': session['completed_at'].isoformat()
-        })
+            'completed_at': session['completed_at'].isoformat(),
+            's2s_synced': sync_results['synced']
+        }
+
+        if sync_results['warnings']:
+            response['s2s_warnings'] = sync_results['warnings']
+
+        return jsonify(response)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -505,6 +566,55 @@ def cancel_session(session_id):
             'status': session['status'],
             'completed_at': session['completed_at'].isoformat()
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# S2S Sync endpoints
+@app.route('/api/sync/status', methods=['GET'])
+def get_sync_status():
+    try:
+        pending_count = postgres.get_pending_sync_count()
+        return jsonify({
+            'pending_count': pending_count
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/sync/retry', methods=['POST'])
+def retry_pending_syncs():
+    s2s = get_s2s_manager()
+    if not s2s:
+        return jsonify({'error': 'S2S database not configured'}), 400
+
+    try:
+        pending = postgres.get_pending_syncs(limit=100)
+        results = {
+            'total': len(pending),
+            'synced': 0,
+            'failed': 0,
+            'errors': []
+        }
+
+        for sync in pending:
+            success, error = s2s.update_line_qty_received(sync['line_id'], sync['qty_received'])
+            if success:
+                success, error = s2s.update_po_total_received(sync['po_id'])
+
+            if success:
+                postgres.mark_sync_complete(sync['id'])
+                results['synced'] += 1
+            else:
+                postgres.update_sync_error(sync['id'], error)
+                results['failed'] += 1
+                results['errors'].append({
+                    'sync_id': sync['id'],
+                    'line_id': sync['line_id'],
+                    'error': error
+                })
+
+        return jsonify(results)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
