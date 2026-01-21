@@ -513,6 +513,10 @@ def process_scan(session_id):
             success, error = s2s.update_po_total_received(po_id)
             if success:
                 s2s_synced = True
+                # Update item inventory (non-blocking)
+                inv_success, inv_error = s2s.update_item_inventory(unit_barcode, quantity)
+                if not inv_success:
+                    s2s_warning = f"Failed to update item inventory: {inv_error}"
             else:
                 s2s_warning = f"Failed to update PO total: {error}"
                 postgres.add_pending_sync(scan['id'], line_id, po_id, line_total, error)

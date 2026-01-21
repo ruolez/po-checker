@@ -529,6 +529,22 @@ class S2SManager(MSSQLManager):
         except Exception as e:
             return False, str(e)
 
+    def update_item_inventory(self, product_upc, qty_received):
+        """Update Items_tbl QuantOnHand and LastReceived when product is received."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE Items_tbl
+                    SET QuantOnHand = ISNULL(QuantOnHand, 0) + %s,
+                        LastReceived = CAST(GETDATE() AS smalldatetime)
+                    WHERE ProductUPC = %s
+                """, (qty_received, product_upc))
+                conn.commit()
+                return True, None
+        except Exception as e:
+            return False, str(e)
+
 
 class ShipperDBManager(MSSQLManager):
     def __init__(self, server, port, database, username, password, table_name='case_barcodes'):
