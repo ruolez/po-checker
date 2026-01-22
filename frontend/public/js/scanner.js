@@ -140,7 +140,7 @@ function startAutoComplete() {
             await fetch(`${API_BASE}/sessions/${sessionId}/complete`, {
                 method: 'POST'
             });
-            window.location.href = `/summary.html?session=${sessionId}`;
+            window.location.href = '/';
         } catch (error) {
             hideElement('auto-complete-overlay');
             showToast('Failed to complete session', 'error');
@@ -634,7 +634,7 @@ document.getElementById('complete-yes').addEventListener('click', async () => {
         await fetch(`${API_BASE}/sessions/${sessionId}/complete`, {
             method: 'POST'
         });
-        window.location.href = `/summary.html?session=${sessionId}`;
+        window.location.href = '/';
     } catch (error) {
         showToast('Failed to complete session', 'error');
     }

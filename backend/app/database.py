@@ -421,7 +421,7 @@ class S2SManager(MSSQLManager):
                 query += " AND po.PoDate <= %s"
                 params.append(date_to)
 
-            query += " ORDER BY po.PoDate DESC"
+            query += " ORDER BY po.PoID DESC"
 
             cursor.execute(query, tuple(params))
             return cursor.fetchall()
