@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inventory History - PO Checker</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/history.css">
+</head>
+<body>
+    <!-- Floating Back Icon -->
+    <div class="floating-icon left">
+        <a href="/settings.html" class="icon-btn" title="Back to Settings">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        </a>
+    </div>
+
+    <main class="container history-container page-content">
+        <h1 class="page-title">Inventory History</h1>
+
+        <!-- Filter Controls -->
+        <div class="history-controls">
+            <label class="toggle-label">
+                <input type="checkbox" id="show-undone">
+                <span class="toggle-slider"></span>
+                <span class="toggle-text">Show undone changes</span>
+            </label>
+        </div>
+
+        <!-- History Table -->
+        <div class="history-table-wrapper">
+            <table class="history-table" id="history-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Product</th>
+                        <th>PO</th>
+                        <th class="text-right">Before</th>
+                        <th class="text-right">Change</th>
+                        <th class="text-right">After</th>
+                        <th class="text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="history-body">
+                    <tr>
+                        <td colspan="7" class="loading-cell">
+                            <div class="spinner"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty-state hidden" id="empty-state">
+            <div class="empty-state-icon">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+            </div>
+            <h3 class="empty-state-title">No inventory changes</h3>
+            <p class="empty-state-desc">Inventory changes from receiving sessions will appear here.</p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination">
+            <button class="btn btn-outline btn-sm" id="prev-btn" disabled>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="15 18 9 12 15 6"></polyline>
+                </svg>
+                Previous
+            </button>
+            <span class="pagination-info" id="pagination-info">Page 1</span>
+            <button class="btn btn-outline btn-sm" id="next-btn" disabled>
+                Next
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+            </button>
+        </div>
+    </main>
+
+    <!-- Undo Confirmation Modal -->
+    <div class="modal-overlay hidden" id="undo-modal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">Undo Inventory Change</h3>
+            </div>
+            <div class="modal-body">
+                <p class="undo-warning">Are you sure you want to undo this inventory change?</p>
+                <div class="undo-details">
+                    <div class="undo-product" id="undo-product-name"></div>
+                    <div class="undo-qty">
+                        <span class="undo-qty-label">Quantity to subtract:</span>
+                        <span class="undo-qty-value" id="undo-qty-value"></span>
+                    </div>
+                </div>
+                <p class="undo-note">This will subtract the quantity from the current inventory in S2S.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="undo-cancel">Cancel</button>
+                <button class="btn btn-danger" id="undo-confirm">Undo Change</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="/js/history.js"></script>
+</body>
+</html>

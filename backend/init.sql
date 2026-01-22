@@ -63,6 +63,20 @@ CREATE TABLE IF NOT EXISTS pending_s2s_syncs (
     synced_at TIMESTAMP
 );
 
+-- Inventory change history (for undo functionality)
+CREATE TABLE IF NOT EXISTS inventory_changes (
+    id SERIAL PRIMARY KEY,
+    session_id INT REFERENCES receiving_sessions(id) ON DELETE SET NULL,
+    product_upc VARCHAR(50) NOT NULL,
+    product_description VARCHAR(255),
+    qty_before INT,
+    qty_after INT,
+    qty_changed INT NOT NULL,
+    changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    undone_at TIMESTAMP,
+    undo_error TEXT
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON receiving_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_po_id ON receiving_sessions(po_id);
@@ -71,3 +85,4 @@ CREATE INDEX IF NOT EXISTS idx_config_key ON config(key);
 CREATE INDEX IF NOT EXISTS idx_excluded_upc ON excluded_products(product_upc);
 CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id);
 CREATE INDEX IF NOT EXISTS idx_pending_syncs_synced ON pending_s2s_syncs(synced_at) WHERE synced_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_inventory_changes_changed_at ON inventory_changes(changed_at DESC);

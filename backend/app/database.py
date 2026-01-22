@@ -353,6 +353,97 @@ class PostgresManager:
                 """)
                 return cur.rowcount
 
+    # Inventory change history management
+    def ensure_inventory_changes_table(self):
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS inventory_changes (
+                        id SERIAL PRIMARY KEY,
+                        session_id INT REFERENCES receiving_sessions(id) ON DELETE SET NULL,
+                        product_upc VARCHAR(50) NOT NULL,
+                        product_description VARCHAR(255),
+                        qty_before INT,
+                        qty_after INT,
+                        qty_changed INT NOT NULL,
+                        changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        undone_at TIMESTAMP,
+                        undo_error TEXT
+                    )
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_inventory_changes_changed_at
+                    ON inventory_changes(changed_at DESC)
+                """)
+
+    def add_inventory_change(self, session_id, product_upc, product_description, qty_before, qty_changed):
+        self.ensure_inventory_changes_table()
+        qty_after = (qty_before or 0) + qty_changed
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    INSERT INTO inventory_changes
+                    (session_id, product_upc, product_description, qty_before, qty_after, qty_changed)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING *
+                """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed))
+                return cur.fetchone()
+
+    def get_inventory_history(self, limit=50, offset=0, include_undone=False):
+        self.ensure_inventory_changes_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                where_clause = "" if include_undone else "WHERE ic.undone_at IS NULL"
+                cur.execute(f"""
+                    SELECT
+                        ic.id,
+                        ic.session_id,
+                        ic.product_upc,
+                        ic.product_description,
+                        ic.qty_before,
+                        ic.qty_after,
+                        ic.qty_changed,
+                        ic.changed_at,
+                        ic.undone_at,
+                        ic.undo_error,
+                        rs.po_number,
+                        rs.supplier_name
+                    FROM inventory_changes ic
+                    LEFT JOIN receiving_sessions rs ON ic.session_id = rs.id
+                    {where_clause}
+                    ORDER BY ic.changed_at DESC
+                    LIMIT %s OFFSET %s
+                """, (limit, offset))
+                return cur.fetchall()
+
+    def get_inventory_history_count(self, include_undone=False):
+        self.ensure_inventory_changes_table()
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                where_clause = "" if include_undone else "WHERE undone_at IS NULL"
+                cur.execute(f"SELECT COUNT(*) FROM inventory_changes {where_clause}")
+                return cur.fetchone()[0]
+
+    def get_inventory_change(self, change_id):
+        self.ensure_inventory_changes_table()
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT * FROM inventory_changes WHERE id = %s
+                """, (change_id,))
+                return cur.fetchone()
+
+    def mark_inventory_change_undone(self, change_id, error=None):
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    UPDATE inventory_changes
+                    SET undone_at = CURRENT_TIMESTAMP, undo_error = %s
+                    WHERE id = %s
+                    RETURNING *
+                """, (error, change_id))
+                return cur.fetchone()
+
 
 class MSSQLManager:
     def __init__(self, server, port, database, username, password):
@@ -551,6 +642,35 @@ class S2SManager(MSSQLManager):
                         LastReceived = CAST(GETDATE() AS smalldatetime)
                     WHERE ProductUPC = %s
                 """, (qty_received, product_upc))
+                conn.commit()
+                return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def get_item_inventory(self, product_upc):
+        """Get current QuantOnHand for a product before updating."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor(as_dict=True)
+                cursor.execute("""
+                    SELECT ProductUPC, ISNULL(QuantOnHand, 0) as QuantOnHand
+                    FROM Items_tbl
+                    WHERE ProductUPC = %s
+                """, (product_upc,))
+                return cursor.fetchone()
+        except Exception:
+            return None
+
+    def subtract_item_inventory(self, product_upc, qty):
+        """Subtract from Items_tbl QuantOnHand (for undo functionality)."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE Items_tbl
+                    SET QuantOnHand = ISNULL(QuantOnHand, 0) - %s
+                    WHERE ProductUPC = %s
+                """, (qty, product_upc))
                 conn.commit()
                 return True, None
         except Exception as e:

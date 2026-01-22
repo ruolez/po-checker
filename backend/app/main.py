@@ -515,9 +515,22 @@ def process_scan(session_id):
             success, error = s2s.update_po_total_received(po_id)
             if success:
                 s2s_synced = True
-                # Update item inventory (non-blocking)
+                # Get current inventory BEFORE update
+                item_info = s2s.get_item_inventory(unit_barcode)
+                qty_before = item_info['QuantOnHand'] if item_info else 0
+
+                # Update item inventory
                 inv_success, inv_error = s2s.update_item_inventory(unit_barcode, quantity)
-                if not inv_success:
+                if inv_success:
+                    # Record the inventory change for history/undo
+                    postgres.add_inventory_change(
+                        session_id,
+                        unit_barcode,
+                        matching_line['ProductDescription'],
+                        qty_before,
+                        quantity
+                    )
+                else:
                     s2s_warning = f"Failed to update item inventory: {inv_error}"
             else:
                 s2s_warning = f"Failed to update PO total: {error}"
@@ -663,6 +676,74 @@ def retry_pending_syncs():
                 })
 
         return jsonify(results)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# Inventory history endpoints
+@app.route('/api/inventory-history', methods=['GET'])
+def get_inventory_history():
+    try:
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+        include_undone = request.args.get('include_undone', 'false').lower() == 'true'
+
+        changes = postgres.get_inventory_history(limit, offset, include_undone)
+        total = postgres.get_inventory_history_count(include_undone)
+
+        return jsonify({
+            'changes': [{
+                'id': c['id'],
+                'session_id': c['session_id'],
+                'product_upc': c['product_upc'],
+                'product_description': c['product_description'],
+                'qty_before': c['qty_before'],
+                'qty_after': c['qty_after'],
+                'qty_changed': c['qty_changed'],
+                'changed_at': c['changed_at'].isoformat() if c['changed_at'] else None,
+                'undone_at': c['undone_at'].isoformat() if c['undone_at'] else None,
+                'undo_error': c['undo_error'],
+                'po_number': c['po_number'],
+                'supplier_name': c['supplier_name']
+            } for c in changes],
+            'total': total,
+            'limit': limit,
+            'offset': offset
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/inventory-history/<int:change_id>/undo', methods=['POST'])
+def undo_inventory_change(change_id):
+    try:
+        change = postgres.get_inventory_change(change_id)
+        if not change:
+            return jsonify({'error': 'Inventory change not found'}), 404
+
+        if change['undone_at']:
+            return jsonify({'error': 'This change has already been undone'}), 400
+
+        s2s = get_s2s_manager()
+        if not s2s:
+            return jsonify({'error': 'S2S database not configured'}), 400
+
+        # Subtract the quantity from inventory
+        success, error = s2s.subtract_item_inventory(change['product_upc'], change['qty_changed'])
+
+        if success:
+            postgres.mark_inventory_change_undone(change_id)
+            return jsonify({
+                'success': True,
+                'message': f"Undone: {change['qty_changed']} units of {change['product_description']}"
+            })
+        else:
+            postgres.mark_inventory_change_undone(change_id, error)
+            return jsonify({
+                'success': False,
+                'error': f"Failed to undo inventory change: {error}"
+            }), 500
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
