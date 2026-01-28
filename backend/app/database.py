@@ -376,17 +376,25 @@ class PostgresManager:
                     ON inventory_changes(changed_at DESC)
                 """)
 
-    def add_inventory_change(self, session_id, product_upc, product_description, qty_before, qty_changed):
+    def add_inventory_change(self, session_id, product_upc, product_description, qty_before, qty_changed, changed_at=None):
         self.ensure_inventory_changes_table()
         qty_after = (qty_before or 0) + qty_changed
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""
-                    INSERT INTO inventory_changes
-                    (session_id, product_upc, product_description, qty_before, qty_after, qty_changed)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                    RETURNING *
-                """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed))
+                if changed_at:
+                    cur.execute("""
+                        INSERT INTO inventory_changes
+                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        RETURNING *
+                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at))
+                else:
+                    cur.execute("""
+                        INSERT INTO inventory_changes
+                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed)
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                        RETURNING *
+                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed))
                 return cur.fetchone()
 
     def get_inventory_history(self, limit=50, offset=0, include_undone=False):
@@ -613,7 +621,7 @@ class S2SManager(MSSQLManager):
             return False, str(e)
 
     def update_po_total_received(self, po_id):
-        """Recalculate TotQtyRcv from sum of line items."""
+        """Recalculate TotQtyRcv and update RequiredDate."""
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
@@ -623,7 +631,8 @@ class S2SManager(MSSQLManager):
                         SELECT ISNULL(SUM(ISNULL(QtyReceived, 0)), 0)
                         FROM PurchaseOrdersDetails_tbl
                         WHERE PoID = %s
-                    )
+                    ),
+                    RequiredDate = GETDATE()
                     WHERE PoID = %s
                 """, (po_id, po_id))
                 conn.commit()
@@ -675,6 +684,13 @@ class S2SManager(MSSQLManager):
                 return True, None
         except Exception as e:
             return False, str(e)
+
+    def get_server_datetime(self):
+        """Get current datetime from SQL Server."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT GETDATE()")
+            return cursor.fetchone()[0]
 
 
 class ShipperDBManager(MSSQLManager):

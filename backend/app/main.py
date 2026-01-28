@@ -522,13 +522,16 @@ def process_scan(session_id):
                 # Update item inventory
                 inv_success, inv_error = s2s.update_item_inventory(unit_barcode, quantity)
                 if inv_success:
+                    # Get SQL Server's current datetime for history
+                    sql_server_time = s2s.get_server_datetime()
                     # Record the inventory change for history/undo
                     postgres.add_inventory_change(
                         session_id,
                         unit_barcode,
                         matching_line['ProductDescription'],
                         qty_before,
-                        quantity
+                        quantity,
+                        changed_at=sql_server_time
                     )
                 else:
                     s2s_warning = f"Failed to update item inventory: {inv_error}"
