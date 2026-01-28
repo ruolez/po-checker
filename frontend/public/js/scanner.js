@@ -7,6 +7,7 @@ let poData = null;
 let receivedTotals = {};
 let recentScans = [];
 let pendingProduct = null;
+let pendingExclude = null;  // { lineId, upc, description }
 let quickScanMode = localStorage.getItem('quickScanMode') === 'true';
 let autoCompleteTimer = null;
 let countdownInterval = null;
@@ -162,12 +163,31 @@ function cancelAutoComplete() {
     document.getElementById('scan-input').focus();
 }
 
-// Exclude product from future PO checks
-async function excludeProduct(lineId, upc, description) {
+// Show exclude confirmation modal
+function showExcludeModal(lineId, upc, description) {
     if (!upc) {
         showToast('Cannot exclude product without UPC', 'error');
         return;
     }
+
+    pendingExclude = { lineId, upc, description };
+    document.getElementById('exclude-product-name').textContent = description || 'Unknown Product';
+    showElement('exclude-modal');
+}
+
+// Hide exclude confirmation modal
+function hideExcludeModal() {
+    hideElement('exclude-modal');
+    pendingExclude = null;
+    document.getElementById('scan-input').focus();
+}
+
+// Confirm exclude product (called when user confirms in modal)
+async function confirmExclude() {
+    if (!pendingExclude) return;
+
+    const { lineId, upc, description } = pendingExclude;
+    hideExcludeModal();
 
     try {
         const response = await fetch(`${API_BASE}/excluded-products`, {
@@ -197,6 +217,11 @@ async function excludeProduct(lineId, upc, description) {
     } catch (error) {
         showToast(error.message, 'error');
     }
+}
+
+// Exclude product - shows confirmation modal first
+function excludeProduct(lineId, upc, description) {
+    showExcludeModal(lineId, upc, description);
 }
 
 // Quick scan a product by clicking on it (uses system UPC)
@@ -642,6 +667,15 @@ document.getElementById('complete-yes').addEventListener('click', async () => {
 
 // Auto-complete cancel button
 document.getElementById('cancel-auto-complete').addEventListener('click', cancelAutoComplete);
+
+// Exclude modal handlers
+document.getElementById('exclude-no').addEventListener('click', hideExcludeModal);
+document.getElementById('exclude-yes').addEventListener('click', confirmExclude);
+document.getElementById('exclude-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'exclude-modal') {
+        hideExcludeModal();
+    }
+});
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {

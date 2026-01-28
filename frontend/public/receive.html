@@ -157,6 +157,23 @@
 
     <div id="toast" class="toast"></div>
 
+    <!-- Confirm Exclude Modal -->
+    <div id="exclude-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 class="modal-title">Exclude Product?</h2>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to exclude <strong id="exclude-product-name"></strong> from future PO checks?</p>
+                <p style="color: var(--on-surface-secondary); font-size: 14px; margin-top: 8px;">You can restore excluded products in Settings.</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="exclude-no">Cancel</button>
+                <button class="btn btn-danger" id="exclude-yes">Exclude</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Auto-Complete Overlay -->
     <div id="auto-complete-overlay" class="modal-overlay hidden">
         <div class="modal auto-complete-modal">
