@@ -1242,3 +1242,22 @@ body {
     color: var(--success);
     font-size: 24px;
 }
+
+/* Over-receiving warning in quantity modal */
+.qty-over-warning {
+    background-color: var(--warning-light);
+    border: 1px solid var(--warning);
+    color: #92400e;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.qty-over-warning svg {
+    flex-shrink: 0;
+}

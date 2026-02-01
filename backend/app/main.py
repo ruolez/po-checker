@@ -457,11 +457,25 @@ def process_scan(session_id):
         qty_ordered = matching_line['QtyOrdered'] or 0
         remaining = max(0, qty_ordered - current_received)
 
+        # Check if product is fully received (block scan)
+        if current_received >= qty_ordered and qty_ordered > 0:
+            return jsonify({
+                'error': 'Product fully received',
+                'fully_received': True,
+                'product_description': matching_line['ProductDescription'],
+                'qty_ordered': qty_ordered,
+                'qty_received': current_received
+            }), 400
+
         # VALIDATE MODE: Return product info without recording
         if mode == 'validate':
+            # Check if scan would cause over-receiving
+            over_receiving_warning = detected_quantity > remaining and remaining > 0
+
             return jsonify({
                 'success': True,
                 'mode': 'validate',
+                'over_receiving_warning': over_receiving_warning,
                 'product': {
                     'line_id': matching_line['LineID'],
                     'product_upc': unit_barcode,

@@ -342,6 +342,10 @@ async function validateBarcode(barcode) {
     const result = await response.json();
 
     if (!response.ok) {
+        // Check for fully_received error - provide more descriptive message
+        if (result.fully_received) {
+            throw new Error(`${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`);
+        }
         throw new Error(result.error || 'Barcode not found');
     }
 
@@ -364,6 +368,10 @@ async function recordScan(barcode, quantity = null) {
     const result = await response.json();
 
     if (!response.ok) {
+        // Check for fully_received error - provide more descriptive message
+        if (result.fully_received) {
+            throw new Error(`${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`);
+        }
         throw new Error(result.error || 'Scan failed');
     }
 
@@ -371,7 +379,7 @@ async function recordScan(barcode, quantity = null) {
 }
 
 // Show quantity modal
-function showQuantityModal(product, barcode) {
+function showQuantityModal(product, barcode, overReceivingWarning = false) {
     const nameEl = document.getElementById('qty-product-name');
     const upcEl = document.getElementById('qty-product-upc');
     const typeEl = document.getElementById('qty-scan-type');
@@ -380,6 +388,7 @@ function showQuantityModal(product, barcode) {
     const remainingEl = document.getElementById('qty-remaining');
     const labelEl = document.getElementById('qty-label');
     const inputEl = document.getElementById('qty-input');
+    const warningEl = document.getElementById('qty-over-warning');
 
     nameEl.textContent = product.product_description || 'Unknown Product';
     upcEl.textContent = product.product_upc;
@@ -397,6 +406,13 @@ function showQuantityModal(product, barcode) {
     orderedEl.textContent = product.qty_ordered;
     receivedEl.textContent = product.qty_received;
     remainingEl.textContent = product.remaining;
+
+    // Show/hide over-receiving warning
+    if (overReceivingWarning) {
+        warningEl.classList.remove('hidden');
+    } else {
+        warningEl.classList.add('hidden');
+    }
 
     // Set default value: 1 for units, or remaining/detected_quantity for cases (rounded up)
     if (product.barcode_type === 'case') {
@@ -419,6 +435,7 @@ function showQuantityModal(product, barcode) {
 // Hide quantity modal
 function hideQuantityModal() {
     hideElement('quantity-modal');
+    hideElement('qty-over-warning');
     pendingProduct = null;
     document.getElementById('scan-input').focus();
 }
@@ -462,14 +479,16 @@ async function processScan(barcode) {
             const result = await validateBarcode(barcode);
             if (result.success && result.product) {
                 document.getElementById('scan-status').textContent = 'Enter quantity...';
-                showQuantityModal(result.product, barcode);
+                showQuantityModal(result.product, barcode, result.over_receiving_warning);
             }
         }
     } catch (error) {
-        document.getElementById('scan-error').textContent = error.message;
+        // Check if this is a fully_received error (parse from error message or handle specially)
+        const errorMessage = error.message;
+        document.getElementById('scan-error').textContent = errorMessage;
         showElement('scan-error');
         document.getElementById('scan-status').textContent = 'Scan failed - try again';
-        showToast(error.message, 'error');
+        showToast(errorMessage, 'error');
     }
 }
 
