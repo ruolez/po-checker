@@ -344,7 +344,11 @@ async function validateBarcode(barcode) {
     if (!response.ok) {
         // Check for fully_received error - provide more descriptive message
         if (result.fully_received) {
-            throw new Error(`${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`);
+            let msg = `${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`;
+            if (result.line_count && result.line_count > 1) {
+                msg += ` across ${result.line_count} lines`;
+            }
+            throw new Error(msg);
         }
         throw new Error(result.error || 'Barcode not found');
     }
@@ -370,7 +374,11 @@ async function recordScan(barcode, quantity = null) {
     if (!response.ok) {
         // Check for fully_received error - provide more descriptive message
         if (result.fully_received) {
-            throw new Error(`${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`);
+            let msg = `${result.product_description} is fully received (${result.qty_received}/${result.qty_ordered})`;
+            if (result.line_count && result.line_count > 1) {
+                msg += ` across ${result.line_count} lines`;
+            }
+            throw new Error(msg);
         }
         throw new Error(result.error || 'Scan failed');
     }
@@ -379,7 +387,7 @@ async function recordScan(barcode, quantity = null) {
 }
 
 // Show quantity modal
-function showQuantityModal(product, barcode, overReceivingWarning = false) {
+function showQuantityModal(product, barcode, overReceivingWarning = false, multiLineInfo = null) {
     const nameEl = document.getElementById('qty-product-name');
     const upcEl = document.getElementById('qty-product-upc');
     const typeEl = document.getElementById('qty-scan-type');
@@ -389,6 +397,7 @@ function showQuantityModal(product, barcode, overReceivingWarning = false) {
     const labelEl = document.getElementById('qty-label');
     const inputEl = document.getElementById('qty-input');
     const warningEl = document.getElementById('qty-over-warning');
+    const multiLineEl = document.getElementById('qty-multi-line-info');
 
     nameEl.textContent = product.product_description || 'Unknown Product';
     upcEl.textContent = product.product_upc;
@@ -412,6 +421,14 @@ function showQuantityModal(product, barcode, overReceivingWarning = false) {
         warningEl.classList.remove('hidden');
     } else {
         warningEl.classList.add('hidden');
+    }
+
+    // Show/hide multi-line info
+    if (multiLineInfo && multiLineEl) {
+        multiLineEl.textContent = `Receiving to line ${multiLineInfo.selected_line_id} of ${multiLineInfo.total_lines} for this product`;
+        multiLineEl.classList.remove('hidden');
+    } else if (multiLineEl) {
+        multiLineEl.classList.add('hidden');
     }
 
     // Set default value: 1 for units, or remaining/detected_quantity for cases (rounded up)
@@ -479,7 +496,7 @@ async function processScan(barcode) {
             const result = await validateBarcode(barcode);
             if (result.success && result.product) {
                 document.getElementById('scan-status').textContent = 'Enter quantity...';
-                showQuantityModal(result.product, barcode, result.over_receiving_warning);
+                showQuantityModal(result.product, barcode, result.over_receiving_warning, result.multi_line);
             }
         }
     } catch (error) {

@@ -395,6 +395,36 @@ def get_session(session_id):
         return jsonify({'error': str(e)}), 500
 
 
+def find_matching_lines(po_lines, unit_barcode, excluded_upcs):
+    """Find all PO lines matching the barcode (excluding excluded products)."""
+    matching = []
+    for line in po_lines:
+        if line['ProductUPC'] in excluded_upcs:
+            continue
+        if line['ProductUPC'] == unit_barcode:
+            qty_ordered = line['QtyOrdered'] or 0
+            qty_received = line['QtyReceived'] or 0
+            remaining = max(0, qty_ordered - qty_received)
+            is_full = qty_received >= qty_ordered and qty_ordered > 0
+            matching.append({
+                'line': line,
+                'qty_ordered': qty_ordered,
+                'qty_received': qty_received,
+                'remaining': remaining,
+                'is_fully_received': is_full
+            })
+    return matching
+
+
+def select_available_line(matching_lines):
+    """Select the first available line by LineID (FIFO) that has remaining capacity."""
+    available = [m for m in matching_lines if not m['is_fully_received']]
+    if not available:
+        return None
+    available.sort(key=lambda m: m['line']['LineID'])
+    return available[0]
+
+
 @app.route('/api/sessions/<int:session_id>/scan', methods=['POST'])
 def process_scan(session_id):
     data = request.json
@@ -436,43 +466,55 @@ def process_scan(session_id):
                 detected_quantity = case_info['quantity']
                 barcode_type = 'case'
 
-        # Find matching line in PO (excluding excluded products)
-        matching_line = None
-        for line in po['lines']:
-            if line['ProductUPC'] in excluded_upcs:
-                continue
-            if line['ProductUPC'] == unit_barcode:
-                matching_line = line
-                break
+        # Find ALL matching lines in PO
+        matching_lines = find_matching_lines(po['lines'], unit_barcode, excluded_upcs)
 
-        if not matching_line:
+        if not matching_lines:
             return jsonify({
                 'error': f'Item not found in PO',
                 'barcode': barcode,
                 'unit_barcode': unit_barcode if barcode_type == 'case' else None
             }), 400
 
-        # Get current received total from SQL Server
-        current_received = matching_line['QtyReceived'] or 0
-        qty_ordered = matching_line['QtyOrdered'] or 0
-        remaining = max(0, qty_ordered - current_received)
+        # Check if ALL lines for this product are fully received
+        all_fully_received = all(m['is_fully_received'] for m in matching_lines)
 
-        # Check if product is fully received (block scan)
-        if current_received >= qty_ordered and qty_ordered > 0:
+        if all_fully_received:
+            total_ordered = sum(m['qty_ordered'] for m in matching_lines)
+            total_received = sum(m['qty_received'] for m in matching_lines)
+            line_count = len(matching_lines)
             return jsonify({
                 'error': 'Product fully received',
                 'fully_received': True,
-                'product_description': matching_line['ProductDescription'],
-                'qty_ordered': qty_ordered,
-                'qty_received': current_received
+                'product_description': matching_lines[0]['line']['ProductDescription'],
+                'qty_ordered': total_ordered,
+                'qty_received': total_received,
+                'line_count': line_count
             }), 400
+
+        # Select the first available line by LineID (FIFO)
+        selected = select_available_line(matching_lines)
+        matching_line = selected['line']
+        current_received = selected['qty_received']
+        qty_ordered = selected['qty_ordered']
+        remaining = selected['remaining']
+
+        # Build multi-line context for response
+        multi_line_info = None
+        if len(matching_lines) > 1:
+            available_count = sum(1 for m in matching_lines if not m['is_fully_received'])
+            multi_line_info = {
+                'total_lines': len(matching_lines),
+                'available_lines': available_count,
+                'selected_line_id': matching_line['LineID']
+            }
 
         # VALIDATE MODE: Return product info without recording
         if mode == 'validate':
             # Check if scan would cause over-receiving
             over_receiving_warning = detected_quantity > remaining and remaining > 0
 
-            return jsonify({
+            response = {
                 'success': True,
                 'mode': 'validate',
                 'over_receiving_warning': over_receiving_warning,
@@ -486,7 +528,10 @@ def process_scan(session_id):
                     'qty_received': current_received,
                     'remaining': remaining
                 }
-            })
+            }
+            if multi_line_info:
+                response['multi_line'] = multi_line_info
+            return jsonify(response)
 
         # RECORD MODE: Use custom quantity if provided, otherwise use detected
         quantity = custom_quantity if custom_quantity is not None else detected_quantity
@@ -576,6 +621,9 @@ def process_scan(session_id):
                 'total_received': t['total_received']
             } for t in totals]
         }
+
+        if multi_line_info:
+            response['multi_line'] = multi_line_info
 
         if s2s_warning:
             response['s2s_warning'] = s2s_warning
