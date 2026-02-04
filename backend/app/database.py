@@ -397,11 +397,32 @@ class PostgresManager:
                     """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed))
                 return cur.fetchone()
 
-    def get_inventory_history(self, limit=50, offset=0, include_undone=False):
+    def get_inventory_history(self, limit=50, offset=0, include_undone=False,
+                              date_from=None, date_to=None, upc=None):
         self.ensure_inventory_changes_table()
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                where_clause = "" if include_undone else "WHERE ic.undone_at IS NULL"
+                conditions = []
+                params = []
+
+                if not include_undone:
+                    conditions.append("ic.undone_at IS NULL")
+
+                if date_from:
+                    conditions.append("ic.changed_at >= %s")
+                    params.append(date_from)
+
+                if date_to:
+                    conditions.append("ic.changed_at < %s::date + interval '1 day'")
+                    params.append(date_to)
+
+                if upc:
+                    conditions.append("ic.product_upc ILIKE %s")
+                    params.append(f"%{upc}%")
+
+                where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+
+                params.extend([limit, offset])
                 cur.execute(f"""
                     SELECT
                         ic.id,
@@ -421,15 +442,33 @@ class PostgresManager:
                     {where_clause}
                     ORDER BY ic.changed_at DESC
                     LIMIT %s OFFSET %s
-                """, (limit, offset))
+                """, params)
                 return cur.fetchall()
 
-    def get_inventory_history_count(self, include_undone=False):
+    def get_inventory_history_count(self, include_undone=False, date_from=None, date_to=None, upc=None):
         self.ensure_inventory_changes_table()
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                where_clause = "" if include_undone else "WHERE undone_at IS NULL"
-                cur.execute(f"SELECT COUNT(*) FROM inventory_changes {where_clause}")
+                conditions = []
+                params = []
+
+                if not include_undone:
+                    conditions.append("undone_at IS NULL")
+
+                if date_from:
+                    conditions.append("changed_at >= %s")
+                    params.append(date_from)
+
+                if date_to:
+                    conditions.append("changed_at < %s::date + interval '1 day'")
+                    params.append(date_to)
+
+                if upc:
+                    conditions.append("product_upc ILIKE %s")
+                    params.append(f"%{upc}%")
+
+                where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
+                cur.execute(f"SELECT COUNT(*) FROM inventory_changes {where_clause}", params)
                 return cur.fetchone()[0]
 
     def get_inventory_change(self, change_id):

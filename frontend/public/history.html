@@ -24,7 +24,24 @@
     <main class="container history-container page-content">
         <h1 class="page-title">Inventory History</h1>
 
-        <!-- Filter Controls -->
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label for="date-from">From</label>
+                <input type="date" id="date-from" class="filter-input">
+            </div>
+            <div class="filter-group">
+                <label for="date-to">To</label>
+                <input type="date" id="date-to" class="filter-input">
+            </div>
+            <div class="filter-group filter-group-upc">
+                <label for="upc-search">UPC</label>
+                <input type="text" id="upc-search" class="filter-input" placeholder="Search by UPC...">
+            </div>
+            <button class="btn btn-outline btn-sm clear-filters-btn" id="clear-filters">Clear Filters</button>
+        </div>
+
+        <!-- Toggle Controls -->
         <div class="history-controls">
             <label class="toggle-label">
                 <input type="checkbox" id="show-undone">

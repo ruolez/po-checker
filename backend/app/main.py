@@ -752,9 +752,12 @@ def get_inventory_history():
         limit = int(request.args.get('limit', 50))
         offset = int(request.args.get('offset', 0))
         include_undone = request.args.get('include_undone', 'false').lower() == 'true'
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        upc = request.args.get('upc', '').strip()
 
-        changes = postgres.get_inventory_history(limit, offset, include_undone)
-        total = postgres.get_inventory_history_count(include_undone)
+        changes = postgres.get_inventory_history(limit, offset, include_undone, date_from, date_to, upc)
+        total = postgres.get_inventory_history_count(include_undone, date_from, date_to, upc)
 
         return jsonify({
             'changes': [{

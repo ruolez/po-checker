@@ -21,6 +21,21 @@ const undoConfirmBtn = document.getElementById('undo-confirm');
 const undoCancelBtn = document.getElementById('undo-cancel');
 const toast = document.getElementById('toast');
 
+// Filter elements
+const dateFromInput = document.getElementById('date-from');
+const dateToInput = document.getElementById('date-to');
+const upcSearchInput = document.getElementById('upc-search');
+const clearFiltersBtn = document.getElementById('clear-filters');
+
+// Debounce utility
+function debounce(func, wait) {
+    let timeout;
+    return (...args) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     loadHistory();
@@ -29,6 +44,24 @@ document.addEventListener('DOMContentLoaded', () => {
         currentPage = 1;
         loadHistory();
     });
+
+    // Filter event listeners
+    dateFromInput.addEventListener('change', () => {
+        currentPage = 1;
+        loadHistory();
+    });
+
+    dateToInput.addEventListener('change', () => {
+        currentPage = 1;
+        loadHistory();
+    });
+
+    upcSearchInput.addEventListener('input', debounce(() => {
+        currentPage = 1;
+        loadHistory();
+    }, 300));
+
+    clearFiltersBtn.addEventListener('click', clearFilters);
 
     prevBtn.addEventListener('click', () => {
         if (currentPage > 1) {
@@ -56,6 +89,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+function clearFilters() {
+    dateFromInput.value = '';
+    dateToInput.value = '';
+    upcSearchInput.value = '';
+    currentPage = 1;
+    loadHistory();
+}
+
 async function loadHistory() {
     const includeUndone = showUndoneCheckbox.checked;
     const offset = (currentPage - 1) * pageSize;
@@ -69,9 +110,12 @@ async function loadHistory() {
     `;
 
     try {
-        const response = await fetch(
-            `${API_BASE}/inventory-history?limit=${pageSize}&offset=${offset}&include_undone=${includeUndone}`
-        );
+        let url = `${API_BASE}/inventory-history?limit=${pageSize}&offset=${offset}&include_undone=${includeUndone}`;
+        if (dateFromInput.value) url += `&date_from=${dateFromInput.value}`;
+        if (dateToInput.value) url += `&date_to=${dateToInput.value}`;
+        if (upcSearchInput.value.trim()) url += `&upc=${encodeURIComponent(upcSearchInput.value.trim())}`;
+
+        const response = await fetch(url);
         const data = await response.json();
 
         if (!response.ok) {
