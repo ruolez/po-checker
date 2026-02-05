@@ -5,7 +5,6 @@ const API_BASE = '/api';
 let sessionId = null;
 let poData = null;
 let receivedTotals = {};
-let recentScans = [];
 let pendingProduct = null;
 let pendingExclude = null;  // { lineId, upc, description }
 let quickScanMode = localStorage.getItem('quickScanMode') === 'true';
@@ -77,12 +76,8 @@ async function loadSession() {
             receivedTotals[line.line_id] = line.qty_received || 0;
         });
 
-        // Load recent scans
-        recentScans = session.scans.slice(0, 10);
-
         updateProgress();
         renderExpectedItems();
-        renderRecentScans();
 
     } catch (error) {
         showToast(error.message, 'error');
@@ -303,34 +298,6 @@ function renderExpectedItems() {
     container.appendChild(table);
 }
 
-// Render recent scans
-function renderRecentScans() {
-    const container = document.getElementById('scan-list');
-
-    if (recentScans.length === 0) {
-        container.innerHTML = `
-            <div class="empty-state">
-                <div class="empty-state-desc">No items scanned yet</div>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = '';
-    recentScans.forEach(scan => {
-        const div = document.createElement('div');
-        div.className = 'scan-item';
-        div.innerHTML = `
-            <div class="scan-item-info">
-                <div class="scan-item-desc">${scan.product_description || 'Unknown'}</div>
-                <div class="scan-item-upc">${scan.barcode}${scan.barcode_type === 'case' ? ' (Case)' : ''}</div>
-            </div>
-            <span class="scan-item-qty">+${scan.quantity}</span>
-        `;
-        container.appendChild(div);
-    });
-}
-
 // Validate barcode (mode=validate) - returns product info without recording
 async function validateBarcode(barcode) {
     const response = await fetch(`${API_BASE}/sessions/${sessionId}/scan`, {
@@ -516,16 +483,9 @@ function handleScanSuccess(result) {
         receivedTotals[t.line_id] = t.total_received;
     });
 
-    // Add to recent scans
-    recentScans.unshift(result.scan);
-    if (recentScans.length > 10) {
-        recentScans.pop();
-    }
-
     // Update UI
     updateProgress();
     renderExpectedItems();
-    renderRecentScans();
 
     // Show success
     const qty = result.scan.quantity;
