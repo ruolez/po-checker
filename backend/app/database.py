@@ -480,6 +480,21 @@ class PostgresManager:
                 """, (change_id,))
                 return cur.fetchone()
 
+    def get_inventory_change_po_info(self, change_id):
+        """Get the po_id and line_id(s) associated with an inventory change."""
+        with self.get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT DISTINCT
+                        rs.po_id,
+                        sr.line_id
+                    FROM inventory_changes ic
+                    JOIN receiving_sessions rs ON ic.session_id = rs.id
+                    JOIN scan_records sr ON sr.session_id = rs.id AND sr.product_upc = ic.product_upc
+                    WHERE ic.id = %s
+                """, (change_id,))
+                return cur.fetchall()
+
     def mark_inventory_change_undone(self, change_id, error=None):
         with self.get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -719,6 +734,21 @@ class S2SManager(MSSQLManager):
                     SET QuantOnHand = ISNULL(QuantOnHand, 0) - %s
                     WHERE ProductUPC = %s
                 """, (qty, product_upc))
+                conn.commit()
+                return True, None
+        except Exception as e:
+            return False, str(e)
+
+    def subtract_line_qty_received(self, line_id, qty):
+        """Subtract from PurchaseOrdersDetails_tbl QtyReceived (for undo functionality)."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE PurchaseOrdersDetails_tbl
+                    SET QtyReceived = ISNULL(QtyReceived, 0) - %s
+                    WHERE LineID = %s
+                """, (qty, line_id))
                 conn.commit()
                 return True, None
         except Exception as e:

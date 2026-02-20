@@ -799,18 +799,35 @@ def undo_inventory_change(change_id):
         # Subtract the quantity from inventory
         success, error = s2s.subtract_item_inventory(change['product_upc'], change['qty_changed'])
 
-        if success:
-            postgres.mark_inventory_change_undone(change_id)
-            return jsonify({
-                'success': True,
-                'message': f"Undone: {change['qty_changed']} units of {change['product_description']}"
-            })
-        else:
+        if not success:
             postgres.mark_inventory_change_undone(change_id, error)
             return jsonify({
                 'success': False,
                 'error': f"Failed to undo inventory change: {error}"
             }), 500
+
+        # Also reverse PO QtyReceived
+        po_info = postgres.get_inventory_change_po_info(change_id)
+        po_warnings = []
+        for row in po_info:
+            line_success, line_error = s2s.subtract_line_qty_received(row['line_id'], change['qty_changed'])
+            if not line_success:
+                po_warnings.append(f"Line {row['line_id']}: {line_error}")
+
+            po_success, po_error = s2s.update_po_total_received(row['po_id'])
+            if not po_success:
+                po_warnings.append(f"PO total {row['po_id']}: {po_error}")
+
+        postgres.mark_inventory_change_undone(change_id)
+
+        result = {
+            'success': True,
+            'message': f"Undone: {change['qty_changed']} units of {change['product_description']}"
+        }
+        if po_warnings:
+            result['warnings'] = po_warnings
+
+        return jsonify(result)
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
