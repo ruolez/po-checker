@@ -565,11 +565,16 @@ def process_scan(session_id):
         line_id = matching_line['LineID']
         po_id = session['po_id']
 
-        # Get cumulative total for this line
+        # Get cumulative total for this line in this session
         line_total = postgres.get_line_total_received(session_id, line_id)
 
+        # Get baseline from prior sessions so we accumulate, not overwrite
+        current_s2s_qty = matching_line['QtyReceived'] or 0
+        baseline = postgres.get_or_create_line_baseline(session_id, line_id, current_s2s_qty)
+        cumulative_qty = baseline + line_total
+
         # Try to update S2S
-        success, error = s2s.update_line_qty_received(line_id, line_total)
+        success, error = s2s.update_line_qty_received(line_id, cumulative_qty)
         if success:
             success, error = s2s.update_po_total_received(po_id)
             if success:
@@ -596,10 +601,10 @@ def process_scan(session_id):
                     s2s_warning = f"Failed to update item inventory: {inv_error}"
             else:
                 s2s_warning = f"Failed to update PO total: {error}"
-                postgres.add_pending_sync(scan['id'], line_id, po_id, line_total, error)
+                postgres.add_pending_sync(scan['id'], line_id, po_id, cumulative_qty, error)
         else:
             s2s_warning = f"Failed to sync to S2S: {error}"
-            postgres.add_pending_sync(scan['id'], line_id, po_id, line_total, error)
+            postgres.add_pending_sync(scan['id'], line_id, po_id, cumulative_qty, error)
 
         response = {
             'success': True,
@@ -650,9 +655,13 @@ def complete_session(session_id):
 
             for total in totals:
                 line_id = total['line_id']
-                qty_received = total['total_received']
+                session_qty = total['total_received']
 
-                success, error = s2s.update_line_qty_received(line_id, qty_received)
+                # Use baseline to accumulate with prior sessions
+                baseline = postgres.get_or_create_line_baseline(session_id, line_id, 0)
+                cumulative_qty = baseline + session_qty
+
+                success, error = s2s.update_line_qty_received(line_id, cumulative_qty)
                 if not success:
                     sync_results['synced'] = False
                     sync_results['warnings'].append(f"Line {line_id}: {error}")

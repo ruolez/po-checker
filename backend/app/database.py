@@ -342,6 +342,27 @@ class PostgresManager:
                 """, (session_id, line_id))
                 return cur.fetchone()[0]
 
+    def get_or_create_line_baseline(self, session_id, line_id, current_s2s_qty):
+        """Get baseline QtyReceived for a line in this session. Creates on first call."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO session_line_baselines (session_id, line_id, baseline_qty_received)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (session_id, line_id) DO NOTHING
+                    RETURNING baseline_qty_received
+                """, (session_id, line_id, current_s2s_qty))
+                row = cur.fetchone()
+                if row:
+                    conn.commit()
+                    return row[0]
+                conn.commit()
+                cur.execute("""
+                    SELECT baseline_qty_received FROM session_line_baselines
+                    WHERE session_id = %s AND line_id = %s
+                """, (session_id, line_id))
+                return cur.fetchone()[0]
+
     def cancel_all_active_sessions(self):
         """Cancel all in-progress sessions (called before creating new session)."""
         with self.get_connection() as conn:

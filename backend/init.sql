@@ -77,6 +77,15 @@ CREATE TABLE IF NOT EXISTS inventory_changes (
     undo_error TEXT
 );
 
+-- Baseline QtyReceived per line per session (for multi-session accumulation)
+CREATE TABLE IF NOT EXISTS session_line_baselines (
+    id SERIAL PRIMARY KEY,
+    session_id INT REFERENCES receiving_sessions(id) ON DELETE CASCADE,
+    line_id INT NOT NULL,
+    baseline_qty_received INT DEFAULT 0,
+    UNIQUE(session_id, line_id)
+);
+
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_sessions_status ON receiving_sessions(status);
 CREATE INDEX IF NOT EXISTS idx_sessions_po_id ON receiving_sessions(po_id);
