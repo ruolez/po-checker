@@ -188,6 +188,17 @@ CREATE TABLE IF NOT EXISTS excluded_suppliers (
 CREATE INDEX IF NOT EXISTS idx_excluded_supplier_id ON excluded_suppliers(supplier_id);
 EOF
 
+    # Create session_line_baselines table if it doesn't exist
+    docker compose exec -T postgres psql -U pochecker pochecker <<EOF 2>/dev/null || true
+CREATE TABLE IF NOT EXISTS session_line_baselines (
+    id SERIAL PRIMARY KEY,
+    session_id INT REFERENCES receiving_sessions(id) ON DELETE CASCADE,
+    line_id INT NOT NULL,
+    baseline_qty_received INT DEFAULT 0,
+    UNIQUE(session_id, line_id)
+);
+EOF
+
     print_msg "Database migrations complete!" "$GREEN"
 }
 

@@ -22,6 +22,8 @@ def add_no_cache_headers(response):
 
 app.after_request(add_no_cache_headers)
 
+postgres.ensure_tables()
+
 
 @app.route('/health')
 def health():

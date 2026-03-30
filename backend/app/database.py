@@ -342,6 +342,20 @@ class PostgresManager:
                 """, (session_id, line_id))
                 return cur.fetchone()[0]
 
+    def ensure_tables(self):
+        """Create tables that may be missing on existing installations."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS session_line_baselines (
+                        id SERIAL PRIMARY KEY,
+                        session_id INT REFERENCES receiving_sessions(id) ON DELETE CASCADE,
+                        line_id INT NOT NULL,
+                        baseline_qty_received INT DEFAULT 0,
+                        UNIQUE(session_id, line_id)
+                    )
+                """)
+
     def get_or_create_line_baseline(self, session_id, line_id, current_s2s_qty):
         """Get baseline QtyReceived for a line in this session. Creates on first call."""
         with self.get_connection() as conn:
