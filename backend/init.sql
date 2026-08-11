@@ -74,7 +74,9 @@ CREATE TABLE IF NOT EXISTS inventory_changes (
     qty_changed INT NOT NULL,
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     undone_at TIMESTAMP,
-    undo_error TEXT
+    undo_error TEXT,
+    line_id INT,
+    po_id INT
 );
 
 -- Baseline QtyReceived per line per session (for multi-session accumulation)

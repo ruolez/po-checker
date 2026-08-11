@@ -199,6 +199,12 @@ CREATE TABLE IF NOT EXISTS session_line_baselines (
 );
 EOF
 
+    # Add line_id/po_id columns to inventory_changes if missing
+    docker compose exec -T postgres psql -U pochecker pochecker <<EOF 2>/dev/null || true
+ALTER TABLE inventory_changes ADD COLUMN IF NOT EXISTS line_id INT;
+ALTER TABLE inventory_changes ADD COLUMN IF NOT EXISTS po_id INT;
+EOF
+
     print_msg "Database migrations complete!" "$GREEN"
 }
 

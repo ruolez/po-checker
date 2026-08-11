@@ -343,7 +343,8 @@ class PostgresManager:
                 return cur.fetchone()[0]
 
     def ensure_tables(self):
-        """Create tables that may be missing on existing installations."""
+        """Create tables/columns that may be missing on existing installations."""
+        self.ensure_inventory_changes_table()
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -354,6 +355,11 @@ class PostgresManager:
                         baseline_qty_received INT DEFAULT 0,
                         UNIQUE(session_id, line_id)
                     )
+                """)
+                cur.execute("""
+                    ALTER TABLE inventory_changes
+                    ADD COLUMN IF NOT EXISTS line_id INT,
+                    ADD COLUMN IF NOT EXISTS po_id INT
                 """)
 
     def get_or_create_line_baseline(self, session_id, line_id, current_s2s_qty):
@@ -403,7 +409,9 @@ class PostgresManager:
                         qty_changed INT NOT NULL,
                         changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         undone_at TIMESTAMP,
-                        undo_error TEXT
+                        undo_error TEXT,
+                        line_id INT,
+                        po_id INT
                     )
                 """)
                 cur.execute("""
@@ -411,7 +419,8 @@ class PostgresManager:
                     ON inventory_changes(changed_at DESC)
                 """)
 
-    def add_inventory_change(self, session_id, product_upc, product_description, qty_before, qty_changed, changed_at=None):
+    def add_inventory_change(self, session_id, product_upc, product_description, qty_before, qty_changed,
+                             changed_at=None, line_id=None, po_id=None):
         self.ensure_inventory_changes_table()
         qty_after = (qty_before or 0) + qty_changed
         with self.get_connection() as conn:
@@ -419,17 +428,17 @@ class PostgresManager:
                 if changed_at:
                     cur.execute("""
                         INSERT INTO inventory_changes
-                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at, line_id, po_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING *
-                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at))
+                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, changed_at, line_id, po_id))
                 else:
                     cur.execute("""
                         INSERT INTO inventory_changes
-                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed)
-                        VALUES (%s, %s, %s, %s, %s, %s)
+                        (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, line_id, po_id)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING *
-                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed))
+                    """, (session_id, product_upc, product_description, qty_before, qty_after, qty_changed, line_id, po_id))
                 return cur.fetchone()
 
     def get_inventory_history(self, limit=50, offset=0, include_undone=False,
@@ -557,7 +566,9 @@ class MSSQLManager:
             port=self.port,
             database=self.database,
             user=self.username,
-            password=self.password
+            password=self.password,
+            timeout=30,
+            login_timeout=15
         )
         try:
             yield conn

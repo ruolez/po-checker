@@ -597,7 +597,9 @@ def process_scan(session_id):
                         matching_line['ProductDescription'],
                         qty_before,
                         quantity,
-                        changed_at=sql_server_time
+                        changed_at=sql_server_time,
+                        line_id=line_id,
+                        po_id=po_id
                     )
                 else:
                     s2s_warning = f"Failed to update item inventory: {inv_error}"
@@ -637,6 +639,7 @@ def process_scan(session_id):
 
         return jsonify(response)
     except Exception as e:
+        app.logger.exception(f"Scan failed for session {session_id}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -807,19 +810,27 @@ def undo_inventory_change(change_id):
         if not s2s:
             return jsonify({'error': 'S2S database not configured'}), 400
 
+        # Resolve PO line(s) BEFORE touching S2S so a lookup failure aborts with nothing changed
+        if change.get('line_id') and change.get('po_id'):
+            po_info = [{'po_id': change['po_id'], 'line_id': change['line_id']}]
+        else:
+            # Fallback for records created before line_id/po_id were stored
+            po_info = postgres.get_inventory_change_po_info(change_id)
+
         # Subtract the quantity from inventory
         success, error = s2s.subtract_item_inventory(change['product_upc'], change['qty_changed'])
 
         if not success:
-            postgres.mark_inventory_change_undone(change_id, error)
+            # Nothing was reversed - leave the record active so undo can be retried
             return jsonify({
                 'success': False,
                 'error': f"Failed to undo inventory change: {error}"
             }), 500
 
         # Also reverse PO QtyReceived
-        po_info = postgres.get_inventory_change_po_info(change_id)
         po_warnings = []
+        if not po_info:
+            po_warnings.append('No PO line found for this change; PO QtyReceived was not reversed')
         for row in po_info:
             line_success, line_error = s2s.subtract_line_qty_received(row['line_id'], change['qty_changed'])
             if not line_success:
@@ -829,7 +840,8 @@ def undo_inventory_change(change_id):
             if not po_success:
                 po_warnings.append(f"PO total {row['po_id']}: {po_error}")
 
-        postgres.mark_inventory_change_undone(change_id)
+        # Inventory was reversed, so always mark undone; keep any PO warnings on the record
+        postgres.mark_inventory_change_undone(change_id, '; '.join(po_warnings) if po_warnings else None)
 
         result = {
             'success': True,
@@ -841,6 +853,7 @@ def undo_inventory_change(change_id):
         return jsonify(result)
 
     except Exception as e:
+        app.logger.exception(f"Undo failed for inventory change {change_id}")
         return jsonify({'error': str(e)}), 500
 
 
